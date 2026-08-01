@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="18dp"
+    android:paddingBottom="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/smart_money_dashboard_title"
+        android:textColor="#EAECEF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/smart_money_dashboard_subtitle"
+        android:textColor="#787B86"
+        android:textSize="12.5sp" />
+
+    <!-- Active liquidity zones -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:background="@drawable/bg_dashboard_card">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/active_liquidity_zones_label"
+            android:textColor="#B2B5BE"
+            android:textSize="12.5sp" />
+
+        <TextView
+            android:id="@+id/activeZoneCountText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#EAECEF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            tools:text="14" />
+    </LinearLayout>
+
+    <!-- Strongest zone -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:background="@drawable/bg_dashboard_card">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/strongest_zone_label"
+            android:textColor="#B2B5BE"
+            android:textSize="12.5sp" />
+
+        <TextView
+            android:id="@+id/strongestZonePriceText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#26A69A"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:text="66,540.5 · BID" />
+
+        <TextView
+            android:id="@+id/strongestZoneDetailText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#787B86"
+            android:textSize="12.5sp"
+            tools:text="Intensity 0.92 · seen 4m ago" />
+    </LinearLayout>
+
+    <!-- Aggression Meter: aggressive buyers vs. aggressive sellers, fit horizontally as a
+         single bar that always totals 100% of tracked market volume. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:background="@drawable/bg_dashboard_card">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/aggression_meter_label"
+            android:textColor="#B2B5BE"
+            android:textSize="12.5sp" />
+
+        <org.example.test.ui.AggressionMeterView
+            android:id="@+id/aggressionMeterView"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_marginTop="10dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/aggressionBuyText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="start"
+                android:textColor="#26A69A"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                tools:text="Buy volume: 72%" />
+
+            <TextView
+                android:id="@+id/aggressionSellText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:textColor="#EF5350"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                tools:text="Sell volume: 28%" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/aggressionSubtext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#787B86"
+            android:textSize="12.5sp"
+            tools:text="Aggressive buyers vs. aggressive sellers · 184.3 BTC tracked" />
+    </LinearLayout>
+
+    <!-- Liquidity map: buy/sell walls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:background="@drawable/bg_dashboard_card">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/liquidity_map_label"
+            android:textColor="#B2B5BE"
+            android:textSize="12.5sp" />
+
+        <!-- Bids (left) vs. asks (right), mirrored around a center divider -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="start"
+                android:text="@string/buy_walls_label"
+                android:textColor="#26A69A"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:text="@string/sell_walls_label"
+                android:textColor="#EF5350"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="start"
+                android:text="@string/column_time"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.2"
+                android:gravity="end"
+                android:text="@string/column_volume_usdt"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.1"
+                android:layout_marginEnd="8dp"
+                android:gravity="end"
+                android:text="@string/column_price"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="10dp"
+                android:background="#22262F" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.1"
+                android:layout_marginStart="8dp"
+                android:gravity="start"
+                android:text="@string/column_price"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.2"
+                android:gravity="start"
+                android:text="@string/column_volume_usdt"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:text="@string/column_time"
+                android:textColor="#4B4E58"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="4dp"
+            android:background="#22262F" />
+
+        <LinearLayout
+            android:id="@+id/liquidityWallRows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/liquidityWallsEmptyText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/no_data_placeholder"
+            android:textColor="#4B4E58"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/smart_money_dashboard_footnote"
+        android:textColor="#4B4E58"
+        android:textSize="11sp" />
+
+</LinearLayout>

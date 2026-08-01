@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- Bid side: Time  Volume(USDT)  Price (reads outward-in toward the divider) -->
+    <TextView
+        android:id="@+id/rowBuyTimeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="start"
+        android:textColor="#787B86"
+        android:textSize="11.5sp"
+        tools:text="14:02:37" />
+
+    <TextView
+        android:id="@+id/rowBuyVolumeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.2"
+        android:gravity="end"
+        android:textColor="#B2B5BE"
+        android:textSize="12.5sp"
+        tools:text="$1.24M" />
+
+    <TextView
+        android:id="@+id/rowBuyPriceText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.1"
+        android:layout_marginEnd="8dp"
+        android:gravity="end"
+        android:textColor="#26A69A"
+        android:textSize="12.5sp"
+        android:textStyle="bold"
+        tools:text="66,540.5" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="14dp"
+        android:background="#22262F" />
+
+    <!-- Ask side: Price  Volume(USDT)  Time (mirror of the bid side) -->
+    <TextView
+        android:id="@+id/rowSellPriceText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.1"
+        android:layout_marginStart="8dp"
+        android:gravity="start"
+        android:textColor="#EF5350"
+        android:textSize="12.5sp"
+        android:textStyle="bold"
+        tools:text="66,610.0" />
+
+    <TextView
+        android:id="@+id/rowSellVolumeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.2"
+        android:gravity="start"
+        android:textColor="#B2B5BE"
+        android:textSize="12.5sp"
+        tools:text="$0.98M" />
+
+    <TextView
+        android:id="@+id/rowSellTimeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="end"
+        android:textColor="#787B86"
+        android:textSize="11.5sp"
+        tools:text="14:01:52" />
+
+</LinearLayout>

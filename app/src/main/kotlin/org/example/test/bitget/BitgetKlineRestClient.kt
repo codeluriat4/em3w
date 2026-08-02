@@ -41,7 +41,7 @@ class BitgetKlineRestClient(
                 add(Kline.fromRestJsonArray(rows.getJSONArray(i)))
             }
         }
-        
+
         return candles.sortedBy { it.startTime }
     }
 

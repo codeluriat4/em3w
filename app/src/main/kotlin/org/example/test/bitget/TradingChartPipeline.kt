@@ -18,11 +18,11 @@ import kotlin.math.min
 
 enum class PipelineState {
     IDLE,
-    
+
     STREAMING_COLD,
-    
+
     SNAPSHOT_RETRYING,
-    
+
     LIVE,
     STOPPED,
 }
@@ -40,7 +40,7 @@ class TradingChartPipeline(
         const val TAG = "TradingChartPipeline"
         const val SNAPSHOT_BASE_RETRY_DELAY_MS = 1_500L
         const val SNAPSHOT_MAX_RETRY_DELAY_MS = 20_000L
-        
+
         const val MAX_QUEUED_TICKS = 2_000
         const val CACHE_PERSIST_INTERVAL_MS = 5_000L
     }
@@ -48,28 +48,28 @@ class TradingChartPipeline(
     private val buffer = KlineBuffer(bufferCapacity)
 
     private val _klines = MutableStateFlow<List<Kline>>(emptyList())
-    
+
     val klines: StateFlow<List<Kline>> = _klines.asStateFlow()
 
     private val _pipelineState = MutableStateFlow(PipelineState.IDLE)
     val pipelineState: StateFlow<PipelineState> = _pipelineState.asStateFlow()
 
     private val _usingCache = MutableStateFlow(false)
-    
+
     val usingCache: StateFlow<Boolean> = _usingCache.asStateFlow()
 
     val socketState: StateFlow<SocketState> = socket.state
 
     private val _currentTimeframe = MutableStateFlow(initialTimeframe)
-    
+
     val currentTimeframe: StateFlow<Timeframe> = _currentTimeframe.asStateFlow()
 
     private val _barDurationMillis = MutableStateFlow(initialTimeframe.durationMillis)
-    
+
     val barDurationMillis: StateFlow<Long> = _barDurationMillis.asStateFlow()
 
     private val _snapshotError = MutableStateFlow<String?>(null)
-    
+
     val snapshotError: StateFlow<String?> = _snapshotError.asStateFlow()
 
     val socketError: StateFlow<String?> = socket.lastError
@@ -106,7 +106,7 @@ class TradingChartPipeline(
     }
 
     fun stop() {
-        
+
         if (primed) {
             val finalSnapshot = buffer.snapshot()
             if (finalSnapshot.isNotEmpty()) {
@@ -129,7 +129,7 @@ class TradingChartPipeline(
     }
 
     private suspend fun performTimeframeSwitch(timeframe: Timeframe) {
-        
+
         rawUpdatesJob?.cancel()
         cacheLoadJob?.cancel()
         cachePersistJob?.cancel()

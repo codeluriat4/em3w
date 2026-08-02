@@ -3,24 +3,10 @@ package org.example.test.ui
 import android.graphics.Rect
 import android.view.View
 
-/**
- * Screen-space boundary math shared by the Drawing Context Toolbar and its popovers (color
- * picker, width dropdown). Given a [safeArea] rect -- typically the chart's visible content
- * region translated to screen coordinates, i.e. excluding the price axis, time axis, and their
- * active labels -- computes a location that keeps the floating UI fully inside that rect,
- * flipping above/below or left/right of its anchor as needed rather than spilling past an edge.
- */
 object PopupPlacement {
 
-    /** Result of a placement computation, in screen coordinates. */
     data class Location(val x: Int, val y: Int)
 
-    /**
-     * Places a box of size [width]x[height] near [anchor], preferring just below it (offset by
-     * [gapPx]), flipping to just above it if there isn't enough room below within [safeArea].
-     * Horizontally, it starts aligned to the anchor's left edge and is clamped so it never
-     * crosses [safeArea]'s left/right edges.
-     */
     fun below(
         anchor: View,
         width: Int,

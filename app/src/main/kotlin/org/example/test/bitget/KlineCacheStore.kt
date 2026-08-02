@@ -1,7 +1,7 @@
 package org.example.test.bitget
 
 interface KlineCacheStore {
-    
+
     suspend fun load(): List<Kline>?
 
     suspend fun save(candles: List<Kline>)

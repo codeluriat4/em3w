@@ -16,13 +16,6 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 
-/**
- * Floating color picker for the Drawing Context Toolbar's color swatch button: a full hue/shade
- * palette grid, a grayscale row, a row of user-saved custom colors, a row of recently-used
- * colors, and an opacity slider. Every control applies immediately via [onColorChange] /
- * [onOpacityChange] -- there is no separate confirm step, matching how TradingView's own drawing
- * style controls behave.
- */
 class ColorPickerPopup(private val context: Context) {
 
     private var popupWindow: PopupWindow? = null
@@ -58,8 +51,6 @@ class ColorPickerPopup(private val context: Context) {
     private fun borderColorFor(selected: Boolean, ringOnLight: Boolean = false): Int =
         if (selected) accentColor else if (ringOnLight) Color.parseColor("#3A3E4A") else borderColor
 
-    /** A single tappable swatch. [size] lets the dense palette grid use smaller circles than
-     *  the custom/recent rows. */
     private fun swatchView(color: Int, selected: Boolean, size: Int = dp(28), marginEnd: Int = dp(10), onClick: () -> Unit): View {
         return View(context).apply {
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
@@ -111,18 +102,12 @@ class ColorPickerPopup(private val context: Context) {
             }
         }
 
-        // -- Full palette grid: a grayscale row, then one row per hue across five shades
-        //    (light tint -> vivid -> dark shade), so users aren't limited to a handful of
-        //    fixed presets. --
         container.addView(caption("PALETTE"))
         container.addView(gridRow(grayscaleRow))
         hues.forEach { hue ->
             container.addView(gridRow(shadeRowForHue(hue)))
         }
 
-        // -- Custom colors: swatches the user has explicitly saved via the hex-entry dialog,
-        //    plus the "+" affordance that opens it. Persists across popup opens (session-scoped),
-        //    independent of the auto-tracked recent-colors list below. --
         container.addView(sectionLabel("CUSTOM"))
         val customRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -173,14 +158,12 @@ class ColorPickerPopup(private val context: Context) {
             container.addView(recentRow)
         }
 
-        // -- Divider --
         container.addView(View(context).apply {
             setBackgroundColor(borderColor)
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
             topMargin = dp(12); bottomMargin = dp(10)
         })
 
-        // -- Opacity slider --
         val opacityHeaderRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -211,8 +194,6 @@ class ColorPickerPopup(private val context: Context) {
         }
         container.addView(seekBar)
 
-        // The palette grid can run tall (grayscale + one row per hue), so the whole panel is
-        // wrapped in a ScrollView capped at a max height rather than letting it grow off-screen.
         val scrollHost = ScrollView(context).apply {
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_NEVER
@@ -241,9 +222,6 @@ class ColorPickerPopup(private val context: Context) {
         }
     }
 
-    /** Re-renders swatch selection rings in place after a color is picked, without reopening the
-     *  popup. Walks the whole view tree (grid rows, custom row, recent row) recursively, since
-     *  the palette grid nests swatches more deeply than the old flat preset row did. */
     private fun refreshSelection(root: View, selectedColor: Int) {
         val tag = root.tag
         if (tag is Int) {
@@ -326,23 +304,12 @@ class ColorPickerPopup(private val context: Context) {
         private const val maxRecentColors = 6
         private const val maxCustomColors = 12
 
-        /** In-memory recent-colors list, shared across every ColorPickerPopup instance for the
-         *  lifetime of the process (mirrors TradingView's own session-scoped recent colors). */
         private val recentColors: MutableList<Int> = mutableListOf()
 
-        /** User-saved custom swatches (added via the "+" hex dialog). Also session-scoped;
-         *  long-press a swatch in the CUSTOM row to remove it. */
         private val customColors: MutableList<Int> = mutableListOf()
 
-        /** Base hues (in degrees) that anchor each row of the palette grid: a full 12-step color
-         *  wheel at even 30-degree increments, rather than the original 9 arbitrary preset hues,
-         *  so every major hue family (red, orange, amber, yellow, lime, green, teal, cyan, azure,
-         *  blue, violet, magenta) gets its own row. */
         private val hues: List<Float> = listOf(0f, 30f, 60f, 90f, 120f, 150f, 180f, 210f, 240f, 270f, 300f, 330f)
 
-        /** Saturation/value pairs for each column of a hue row, ordered light tint -> vivid ->
-         *  dark shade. 10 columns (up from 5) so each row's swatches span the full palette width
-         *  instead of leaving empty space, and so adjacent shades read as a smoother gradient. */
         private val shadeSteps: List<Pair<Float, Float>> = listOf(
             0.15f to 1.00f,
             0.28f to 0.98f,
@@ -356,9 +323,6 @@ class ColorPickerPopup(private val context: Context) {
             0.93f to 0.40f,
         )
 
-        /** Neutral row shown above the hue grid, columns aligned light -> dark to match
-         *  [shadeSteps]'s column count (10). Keeps the original brand grays as anchor points
-         *  (white, #B2B5BE, #787B86, #434651, #131722) with intermediate stops filled in. */
         private val grayscaleRow: List<Int> = listOf(
             Color.parseColor("#FFFFFF"),
             Color.parseColor("#D1D4DC"),
@@ -376,7 +340,6 @@ class ColorPickerPopup(private val context: Context) {
             Color.HSVToColor(floatArrayOf(hue, s, v))
         }
 
-        /** Kept for callers that still want a flat "quick pick" list (e.g. defaults, tests). */
         val presetColors: List<Int> = listOf(
             Color.parseColor("#FFFFFF"),
             Color.parseColor("#787B86"),

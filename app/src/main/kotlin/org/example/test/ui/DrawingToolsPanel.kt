@@ -13,12 +13,6 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import org.example.test.chart.DrawingTool
 
-/**
- * A floating panel listing the supported drawing tools (Trend Line, Ray, Info Line, Extended
- * Line, Trend Angle, Horizontal Line, Horizontal Ray, Vertical Line, Cross Line), styled after
- * TradingView's own drawing-tools flyout: a dark, rounded surface with an icon + label per row
- * and the currently active tool highlighted in accent blue.
- */
 class DrawingToolsPanel(private val context: Context) {
 
     private var popupWindow: PopupWindow? = null
@@ -101,7 +95,6 @@ class DrawingToolsPanel(private val context: Context) {
         }
         popupWindow = popup
 
-        // Anchor above the toolbar button, right-aligned to it, TradingView-flyout style.
         val xOffset = anchor.width - panelWidth
         val yOffset = -(container.measuredHeight + anchor.height + dp(8))
         popup.showAsDropDown(anchor, xOffset, yOffset)

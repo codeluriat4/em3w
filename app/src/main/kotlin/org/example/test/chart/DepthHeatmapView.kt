@@ -47,7 +47,7 @@ class DepthHeatmapView @JvmOverloads constructor(
 
         val elapsedMs = if (lastUpdateMs == 0L) Long.MAX_VALUE else nowMs - lastUpdateMs
         if (!hadIncrementalState) {
-            
+
             updateSmoothedRows(fullSnapshot, elapsedMs)
             lastUpdateMs = nowMs
             invalidate()
@@ -74,13 +74,10 @@ class DepthHeatmapView @JvmOverloads constructor(
         invalidate()
     }
 
-    
     fun submitLiquidityZones(zones: List<LiquidityZone>) {
         latestLiquidityZones = zones
     }
 
-    
-    
     fun submitLiquidityShelves(shelves: List<LiquidityShelf>) {
         latestLiquidityShelves = shelves
     }
@@ -194,14 +191,8 @@ class DepthHeatmapView @JvmOverloads constructor(
     private var bidRawLevels = HashMap<Double, Float>()
     private var askRawLevels = HashMap<Double, Float>()
 
-    
     private var latestLiquidityZones: List<LiquidityZone> = emptyList()
 
-    // Kept for source compatibility with the existing submitLiquidityShelves(...) call site.
-    // Shelves are a pre-filtered/merged view of the book (LiquidityShelfMerger drops levels
-    // below an intensity threshold), so the heatmap no longer paints from them directly —
-    // rendering now reads the unfiltered per-level liquidityZones stream instead so every
-    // level in the book, however small, gets painted.
     private var latestLiquidityShelves: List<LiquidityShelf> = emptyList()
 
     private var rawBidBucket: FloatArray = FloatArray(0)
@@ -227,10 +218,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         }
     }
 
-    
-    
-    
-    
     private var rowSpanPrice: Double = 0.0
     private val rowSpanHysteresisFraction = 0.15
 
@@ -243,7 +230,7 @@ class DepthHeatmapView @JvmOverloads constructor(
             rowSpanPrice = candidate
             return
         }
-        
+
         val ratio = candidate / rowSpanPrice
         if (ratio < (1.0 - rowSpanHysteresisFraction) || ratio > (1.0 + rowSpanHysteresisFraction)) {
             rowSpanPrice = candidate
@@ -254,7 +241,7 @@ class DepthHeatmapView @JvmOverloads constructor(
         val count = bidRowVolume.size
         if (count == 0 || !priceRangeInitialized || rowSpanPrice <= 0.0) return null
         if (price < minPrice || price > maxPrice) return null
-        
+
         val anchorMax = ceil(maxPrice / rowSpanPrice) * rowSpanPrice
         var row = ((anchorMax - price) / rowSpanPrice).toInt()
         if (row < 0) row = 0
@@ -303,8 +290,6 @@ class DepthHeatmapView @JvmOverloads constructor(
 
     private val recenterMarginFraction = 0.12
 
-    // Retained only for the small order-book depth ladder widget (drawDepthLadder), which is
-    // a separate at-a-glance element from the heatmap nodes themselves.
     private val volumeCutoffFraction = 0.04f
 
     private val quantileCeilingFraction = 0.72f
@@ -314,14 +299,8 @@ class DepthHeatmapView @JvmOverloads constructor(
 
     private val minAlphaScale = 0.30f
 
-    // Nodes whose computed density falls below this are skipped entirely — anything under
-    // 30% intensity is excluded from painting rather than rendered as a faint node.
     private val minPaintedDensity = 0.30f
 
-    // Maps a raw volume into a 0..1 color-gradient density. Levels below the negligible-noise
-    // floor, or whose resulting density falls under minPaintedDensity, are excluded from
-    // painting; everything else — near and far — gets a node, with the log-contrast curve
-    // shaping how intensity ramps from the neutral low color up to each side's peak color.
     private fun densityFor(rowVolume: Float, colorCeiling: Float): Float? {
         if (colorCeiling <= 0f || rowVolume <= negligibleRowVolume) return null
         val ceiling = colorCeiling * quantileCeilingFraction
@@ -360,14 +339,14 @@ class DepthHeatmapView @JvmOverloads constructor(
                 lastUpdateMs = System.currentTimeMillis()
             }
         }
-        
+
         rebuildRawBucketsFromLevels()
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        
+
         if (!priceRangeInitialized || plotWidthPx <= 0 || plotHeightPx <= 0) return
 
         drawHistogramBars(canvas)
@@ -378,9 +357,6 @@ class DepthHeatmapView @JvmOverloads constructor(
 
     private var viewportWidthPx = 0
 
-    // Shared low-intensity neutral (muted taupe-gray) that both sides fade in from at
-    // near-zero density. Bid rows ramp neutral -> medium green -> neon green; ask rows ramp
-    // the same neutral -> medium berry -> neon pink.
     private val neutralLowColor = Color.parseColor("#9C7A70")
     private val bidMidColor = Color.parseColor("#61D983")
     private val bidPeakColor = Color.parseColor("#00FF7F")
@@ -395,11 +371,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         return Color.argb(alpha, r, g, b)
     }
 
-    /**
-     * Multi-stop interpolation: neutralLowColor (t=0) -> side mid color (t=0.5) -> side peak
-     * color (t=1), keyed by side so bid/ask nodes share the same low-intensity color but
-     * diverge in hue as density rises.
-     */
     private fun colorForDensity(isBid: Boolean, density: Float, alpha: Int = 255): Int {
         val d = density.coerceIn(0f, 1f)
         val midColor = if (isBid) bidMidColor else askMidColor
@@ -413,10 +384,6 @@ class DepthHeatmapView @JvmOverloads constructor(
 
     private val nearLevelMinBarWidthFraction = 0.03f
 
-    // Paints every row in the currently visible price window, near or far from the mid
-    // price, with no activity threshold: as soon as a row carries any non-negligible volume
-    // it gets a node, sized and colored purely by its own density against the existing
-    // color gradient.
     private fun drawHistogramBars(canvas: Canvas) {
         val bids = bidRowVolume
         val asks = askRowVolume
@@ -443,8 +410,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         }
     }
 
-    
-    
     private fun drawHeatmapNode(canvas: Canvas, top: Float, bottom: Float, barWidthPx: Float, density: Float, isBid: Boolean) {
         if (barWidthPx <= 0f) return
         val rightEdge = plotWidthPx.toFloat()
@@ -506,9 +471,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         maxPrice = newMax
         priceRangeInitialized = true
 
-        
-        
-        
         ensureRowCapacity()
         updateRowSpanPrice(bidRowVolume.size)
         bidRowVolume.fill(0f)
@@ -550,10 +512,8 @@ class DepthHeatmapView @JvmOverloads constructor(
         return ChartPriceRange(mid - paddedHalfSpan, mid + paddedHalfSpan)
     }
 
-    
     private val unionRangeBoundMultiplier = 2.5
 
-    
     private fun computeUnionPriceRange(candleWindow: List<Kline>): ChartPriceRange? {
         val base = ChartPriceRange.from(candleWindow) ?: return null
         val span = base.maxPrice - base.minPrice
@@ -582,7 +542,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         return ChartPriceRange(expandedMin, expandedMax)
     }
 
-    
     private fun combinedVolumeByPrice(): Map<Double, Float> {
         val zones = latestLiquidityZones
         val result = HashMap<Double, Float>()
@@ -646,8 +605,7 @@ class DepthHeatmapView @JvmOverloads constructor(
         color = Color.parseColor("#22C55E")
         alpha = 170
         style = Paint.Style.STROKE
-        // Hairline: always renders as a single device pixel regardless of canvas
-        // scale, giving each level a crisp, minimal line marker instead of a bar.
+
         strokeWidth = 0f
     }
     private val ladderAskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -678,8 +636,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         drawLadderLineSide(canvas, snapshot.asks, maxLevelSize, left, right, ladderAskPaint)
     }
 
-    
-    
     private fun drawLadderLineSide(
         canvas: Canvas,
         levels: List<DepthLevel>,
@@ -688,8 +644,7 @@ class DepthHeatmapView @JvmOverloads constructor(
         right: Float,
         paint: Paint,
     ) {
-        // Each level is its own flat, single-pixel-wide horizontal marker at that
-        // level's price row, rather than a connected stepped/filled bar outline.
+
         val path = ladderLinePath
         path.rewind()
         var hasSegments = false
@@ -708,13 +663,6 @@ class DepthHeatmapView @JvmOverloads constructor(
         if (hasSegments) canvas.drawPath(path, paint)
     }
 
-    
-    // Unfiltered rendering of every book level that falls outside the currently visible
-    // price window [minPrice, maxPrice]. Nothing is thresholded, ranked, or compressed into
-    // a summary strip here — every level the tracker knows about gets its own node, painted
-    // at its true price using the same color gradient as the near-price histogram. Levels
-    // land off the visible canvas (above/below [0, plotHeightPx]) and simply won't be drawn
-    // until the person pans/zooms the chart to bring that price into view.
     private val farLevelRowHeightPx get() = dp(3f)
     private val farLevelMinBarWidthFraction = 0.03f
 
@@ -734,8 +682,7 @@ class DepthHeatmapView @JvmOverloads constructor(
         val minBarWidthPx = maxBarWidthPx * farLevelMinBarWidthFraction
 
         for ((price, level) in levels) {
-            // The near-price window is already painted by drawHistogramBars; avoid double
-            // drawing the same level twice.
+
             if (price in minPrice..maxPrice) continue
 
             val density = densityFor(level.volume, ceiling) ?: continue
@@ -749,8 +696,6 @@ class DepthHeatmapView @JvmOverloads constructor(
 
     private class FarLevel(val volume: Float, val isBid: Boolean)
 
-    // Prefers the unbounded liquidity-zone stream (every retained level, no intensity
-    // gating) so the whole order book — not just a filtered subset — is available to paint.
     private fun farBookLevelsByPrice(): Map<Double, FarLevel> {
         val zones = latestLiquidityZones
         if (zones.isNotEmpty()) {

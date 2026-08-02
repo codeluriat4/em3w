@@ -41,14 +41,14 @@ class BitgetDepthSocket(
     val state: StateFlow<SocketState> = _state.asStateFlow()
 
     private val _lastError = MutableStateFlow<String?>(null)
-    
+
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     private val _rawUpdates = MutableSharedFlow<DepthUpdate>(
         replay = 0,
         extraBufferCapacity = 256,
     )
-    
+
     val rawUpdates: SharedFlow<DepthUpdate> = _rawUpdates.asSharedFlow()
 
     private val httpClient = OkHttpClient.Builder()
@@ -186,7 +186,7 @@ class BitgetDepthSocket(
 
             val action = json.getString("action")
             val rows = json.getJSONArray("data")
-            
+
             for (i in 0 until rows.length()) {
                 val update = DepthUpdate.fromJson(rows.getJSONObject(i), action)
                 _rawUpdates.tryEmit(update)

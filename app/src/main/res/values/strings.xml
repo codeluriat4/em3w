@@ -14,21 +14,4 @@
     <string name="legend_low">Low</string>
     <string name="legend_high">High</string>
     <string name="drawing_tools_content_description">Drawing tools</string>
-
-    <string name="smart_money_dashboard_title">Smart Money Dashboard</string>
-    <string name="smart_money_dashboard_subtitle">Order-book liquidity zones and shelves detected in real time</string>
-    <string name="active_liquidity_zones_label">Active liquidity zones</string>
-    <string name="strongest_zone_label">Strongest zone</string>
-    <string name="aggression_meter_label">Aggression Meter</string>
-    <string name="aggressive_buyers_label">Aggressive buyers</string>
-    <string name="aggressive_sellers_label">Aggressive sellers</string>
-    <string name="smart_money_dashboard_footnote">Swipe down anywhere outside the chart to return to the full chart.</string>
-    <string name="no_data_placeholder">—</string>
-
-    <string name="liquidity_map_label">Liquidity map · Top 10 walls</string>
-    <string name="buy_walls_label">Buy walls (bids)</string>
-    <string name="sell_walls_label">Sell walls (asks)</string>
-    <string name="column_price">Price</string>
-    <string name="column_volume_usdt">Volume (USDT)</string>
-    <string name="column_time">Time</string>
 </resources>

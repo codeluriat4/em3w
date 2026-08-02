@@ -119,7 +119,7 @@ class NeumorphicPillDrawable(
     }
 
     override fun setAlpha(alpha: Int) {
-        
+
     }
 
     override fun setColorFilter(colorFilter: ColorFilter?) {
@@ -135,7 +135,7 @@ class NeumorphicPillDrawable(
     private fun pctToAlpha(pct: Float): Int = (pct * 255f).roundToInt().coerceIn(0, 255)
 
     companion object {
-        
+
         fun applyTo(view: View, drawable: NeumorphicPillDrawable) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             view.background = drawable

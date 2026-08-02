@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Draw / Freehand mode glyph, matched to the provided sample: an outlined (hollow, stroked)
-     pencil, pointed tip at bottom-left, angled flat cap at top-right, sitting above a
-     separate wavy stroke, with a clear gap between the two. Both shapes share the same stroke
-     weight and rounded caps/joins so they read as one consistent line-art glyph. Tinted as a
-     whole by the host ImageView, exactly like the timeframe pill labels swap color on selection. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -11,7 +6,6 @@
     android:viewportHeight="24"
     android:tint="#B2B5BE">
 
-    <!-- Pencil: outlined silhouette (stroke only, no fill), tip lower-left, angled cap upper-right -->
     <path
         android:pathData="M5.2,15.6 L5.84,13.38 L15.55,4.01 L16.81,3.59 L17.89,3.55 L17.61,4.41 L17.15,5.66 L7.44,15.04 Z"
         android:strokeColor="#FF000000"
@@ -20,7 +14,6 @@
         android:strokeLineCap="round"
         android:fillColor="#00000000" />
 
-    <!-- Wavy freehand stroke beneath the pencil, not touching it -->
     <path
         android:pathData="M5.2,17.6 C7,15.6 8.5,19.7 10.5,17.6 C12.3,15.7 13.6,19.4 15.5,17.5 C16.9,16.1 17.9,18.3 19,17.2"
         android:strokeColor="#FF000000"

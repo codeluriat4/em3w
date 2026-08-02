@@ -2,13 +2,6 @@ package org.example.test.chart
 
 import org.example.test.R
 
-/**
- * The set of drawing tools exposed by the chart's drawing panel, mirroring a focused subset of
- * TradingView's own drawing toolbar. [pointsRequired] controls the touch gesture used to place
- * the tool on [org.example.test.chart.CandlestickChartView]: tools that need two points are
- * placed with a drag (finger down -> move -> release), while single-point tools are placed with
- * one tap.
- */
 enum class DrawingTool(val label: String, val iconRes: Int, val pointsRequired: Int) {
     NONE("None", 0, 0),
     TREND_LINE("Trend Line", R.drawable.ic_tool_trend_line, 2),
@@ -22,7 +15,7 @@ enum class DrawingTool(val label: String, val iconRes: Int, val pointsRequired: 
     CROSS_LINE("Cross Line", R.drawable.ic_tool_cross_line, 1);
 
     companion object {
-        /** The tools shown in the drawing panel, in display order. */
+
         val selectable: List<DrawingTool> = listOf(
             TREND_LINE,
             RAY,

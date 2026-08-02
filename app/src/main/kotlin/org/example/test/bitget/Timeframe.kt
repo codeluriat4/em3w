@@ -1,7 +1,7 @@
 package org.example.test.bitget
 
 enum class Timeframe(
-    
+
     val label: String,
     val wsChannel: String,
     val restParam: String,
@@ -17,7 +17,5 @@ enum class Timeframe(
 
     companion object {
         val DEFAULT = ONE_MINUTE
-
-        fun fromWsChannel(channel: String): Timeframe? = entries.find { it.wsChannel == channel }
     }
 }

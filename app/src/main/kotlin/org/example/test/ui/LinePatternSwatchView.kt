@@ -9,11 +9,6 @@ import android.util.AttributeSet
 import android.view.View
 import org.example.test.chart.LinePattern
 
-/**
- * Draws a short horizontal line sample in the given [pattern], used inside the Drawing Context
- * Toolbar's Line Pattern selector (Solid / Dashed / Dotted) so each option is shown, not just
- * named.
- */
 class LinePatternSwatchView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,

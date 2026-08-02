@@ -1,15 +1,12 @@
 package org.example.test.bitget
 
 object LiquidityShelfMerger {
-    
+
     private const val nearIntensityThreshold = 0.35f
-    
+
     private const val farIntensityThreshold = 0.15f
     private const val defaultMaxGapFraction = 0.0006
 
-    
-    
-    
     private const val nearPriceRampFraction = 0.01
 
     fun merge(
@@ -40,15 +37,9 @@ object LiquidityShelfMerger {
             }
         }
 
-        
-        
         return shelves.sortedByDescending { it.priorityScore }
     }
 
-    
-    
-    
-    
     private fun requiredIntensity(price: Double, referencePrice: Double): Float {
         val distanceFraction = kotlin.math.abs(price - referencePrice) / referencePrice
         val proximity = kotlin.math.exp(-distanceFraction / nearPriceRampFraction)
@@ -62,8 +53,7 @@ object LiquidityShelfMerger {
         val centerPrice = (minPrice + maxPrice) / 2.0
 
         val distanceFraction = (kotlin.math.abs(centerPrice - referencePrice) / referencePrice)
-        
-        
+
         val proximityWeight = 1.0 - kotlin.math.exp(-distanceFraction / nearPriceRampFraction)
 
         return LiquidityShelf(

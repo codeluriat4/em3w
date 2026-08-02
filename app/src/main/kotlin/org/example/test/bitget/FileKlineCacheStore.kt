@@ -30,7 +30,7 @@ class FileKlineCacheStore(
             }
             candles.sortedBy { it.startTime }.ifEmpty { null }
         } catch (e: Exception) {
-            
+
             Log.w(TAG, "Failed to load kline cache from ${file.name}: ${e.message}")
             null
         }
@@ -54,7 +54,7 @@ class FileKlineCacheStore(
                         }
                     )
                 }
-                
+
                 val tmp = File(file.parentFile, "${file.name}.tmp")
                 tmp.writeText(rows.toString())
                 tmp.renameTo(file)

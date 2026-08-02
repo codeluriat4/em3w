@@ -43,14 +43,14 @@ class BitgetKlineSocket(
     val state: StateFlow<SocketState> = _state.asStateFlow()
 
     private val _lastError = MutableStateFlow<String?>(null)
-    
+
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     private val _rawUpdates = MutableSharedFlow<List<Kline>>(
         replay = 0,
         extraBufferCapacity = 256,
     )
-    
+
     val rawUpdates: SharedFlow<List<Kline>> = _rawUpdates.asSharedFlow()
 
     private val httpClient = OkHttpClient.Builder()

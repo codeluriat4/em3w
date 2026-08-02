@@ -12,12 +12,6 @@ import android.util.AttributeSet
 import android.view.View
 import android.view.animation.LinearInterpolator
 
-/**
- * A lightweight shimmer pill for text placeholders in compact header UI.
- *
- * This view owns no business logic; callers just call [show] / [hide]. The shimmer
- * animation only runs while the view is visible and attached.
- */
 class SkeletonLoadingView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -53,7 +47,6 @@ class SkeletonLoadingView @JvmOverloads constructor(
         alpha = 0f
     }
 
-    /** Fades the skeleton in and (re)starts the shimmer animation. No-op if already shown. */
     fun show() {
         if (visibility == VISIBLE && alpha == 1f) return
         visibility = VISIBLE
@@ -62,7 +55,6 @@ class SkeletonLoadingView @JvmOverloads constructor(
         startShimmer()
     }
 
-    /** Fades the skeleton out and stops the shimmer animation once hidden. No-op if already hidden. */
     fun hide() {
         if (visibility == GONE) return
         animate().cancel()
@@ -98,7 +90,6 @@ class SkeletonLoadingView @JvmOverloads constructor(
 
         val cornerRadius = h / 2f
 
-        // Shimmer sweeps left-to-right across the whole pill once per cycle.
         val sweepWidth = w * 0.6f
         val shimmerX = -sweepWidth + shimmerTranslate * (w + sweepWidth)
         shimmerPaint.shader = LinearGradient(

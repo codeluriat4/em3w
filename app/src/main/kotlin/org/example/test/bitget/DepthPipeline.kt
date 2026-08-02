@@ -22,18 +22,16 @@ class DepthPipeline(
     private val instId: String = "BTCUSDT",
     instType: String = "USDT-FUTURES",
     private val depthLimit: Int = 200,
-    // null = unbounded: include every retained level (near WS window + REST-seeded deep
-    // levels) so far-out liquidity walls reach the zone tracker, shelf merger, and heatmap.
+
     private val renderLevels: Int? = null,
     private val socket: BitgetDepthSocket = BitgetDepthSocket(instId, instType),
     private val depthRestClient: BitgetDepthRestClient = BitgetDepthRestClient(),
 ) {
     private companion object {
         const val TAG = "DepthPipeline"
-        
+
         const val MAX_CONSECUTIVE_MISMATCHES = 5
-        // How often to pull the REST aggregated-depth snapshot to seed levels beyond
-        // Bitget's WS top-150 window.
+
         const val REST_SEED_INTERVAL_MS = 20_000L
     }
 
@@ -41,27 +39,27 @@ class DepthPipeline(
     private val zoneTracker = LiquidityZoneTracker()
 
     private val _depth = MutableStateFlow(DepthSnapshot(emptyList(), emptyList(), 0L, -1L))
-    
+
     val depth: StateFlow<DepthSnapshot> = _depth.asStateFlow()
 
     private val _liquidityZones = MutableStateFlow<List<LiquidityZone>>(emptyList())
-    
+
     val liquidityZones: StateFlow<List<LiquidityZone>> = _liquidityZones.asStateFlow()
 
     private val _liquidityShelves = MutableStateFlow<List<LiquidityShelf>>(emptyList())
-    
+
     val liquidityShelves: StateFlow<List<LiquidityShelf>> = _liquidityShelves.asStateFlow()
 
     private val _priceLevelDelta = MutableStateFlow<DepthDelta?>(null)
-    
+
     val priceLevelDelta: StateFlow<DepthDelta?> = _priceLevelDelta.asStateFlow()
 
     private val _renderTicks = MutableStateFlow(DepthRenderTick(DepthSnapshot(emptyList(), emptyList(), 0L, -1L), null))
-    
+
     val renderTicks: StateFlow<DepthRenderTick> = _renderTicks.asStateFlow()
 
     private val _driftError = MutableStateFlow<String?>(null)
-    
+
     val driftError: StateFlow<String?> = _driftError.asStateFlow()
 
     val socketState: StateFlow<SocketState> = socket.state
@@ -119,7 +117,7 @@ class DepthPipeline(
     private suspend fun onUpdateArrived(update: DepthUpdate) {
         if (update.isSnapshot) {
             matrix.applySnapshot(update)
-            
+
             onDeltaApplied(update, delta = null)
             return
         }
@@ -127,19 +125,19 @@ class DepthPipeline(
         if (delta != null) {
             onDeltaApplied(update, delta)
         }
-        
+
     }
 
     private suspend fun onDeltaApplied(update: DepthUpdate?, delta: DepthDelta?) {
         val snapshot = matrix.snapshot(renderLevels)
         _depth.value = snapshot
         _priceLevelDelta.value = delta
-        
+
         _renderTicks.value = DepthRenderTick(snapshot, delta)
-        
+
         val zones = zoneTracker.update(snapshot, update?.timestampMs ?: System.currentTimeMillis())
         _liquidityZones.value = zones
-        
+
         val referencePrice = midPriceOf(snapshot)
         _liquidityShelves.value = if (referencePrice != null) {
             LiquidityShelfMerger.merge(zones, referencePrice)
@@ -147,8 +145,6 @@ class DepthPipeline(
             emptyList()
         }
 
-        // REST-seeded deltas have no WS checksum/seq to verify against; only WS updates
-        // participate in drift detection and recovery.
         if (update == null) return
 
         if (matrix.verifyChecksum(update.checksum)) {
@@ -170,7 +166,7 @@ class DepthPipeline(
             recovering = true
         }
         try {
-            
+
             socket.resubscribe()
         } finally {
             recoveryLock.withLock { recovering = false }

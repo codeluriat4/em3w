@@ -30,10 +30,10 @@ class KlineBuffer(private val capacity: Int = 100) {
                 if (deque.size > capacity) deque.removeFirst()
             }
             else -> {
-                
+
                 val idx = deque.indexOfLast { it.startTime == candle.startTime }
                 if (idx >= 0) deque[idx] = candle
-                
+
             }
         }
     }

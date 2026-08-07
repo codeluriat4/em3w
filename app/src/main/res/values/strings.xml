@@ -19,10 +19,4 @@
     <string name="chart_short_button_label">Short</string>
     <string name="chart_long_button_content_description">Long</string>
     <string name="chart_short_button_content_description">Short</string>
-
-    <string name="splash_wordmark">SYNCORA</string>
-    <string name="splash_headline">Trade clearly.\nTogether</string>
-    <string name="splash_headline_line1">Trade clearly.</string>
-    <string name="splash_headline_line2">Together.</string>
-    <string name="splash_logo_content_description">Syncora logo</string>
 </resources>

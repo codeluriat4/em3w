@@ -41,9 +41,7 @@ import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
-    // Shared with SplashActivity via the Application instance. Splash primes this
-    // connection and waits for the first candles before ever navigating here, so by the
-    // time this activity is created the pipeline is typically already LIVE — see
+    // Held at application scope so the pipeline survives activity recreation — see
     // SyncoraApplication.ensureMarketDataStarted().
     private val app by lazy { application as SyncoraApplication }
     private val pipeline by lazy { app.pipeline }
@@ -412,8 +410,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // No-op if Splash already started it (the normal path); starts fresh if the app
-        // was fully backgrounded and stopped in between.
+        // Idempotent: no-op if already running, starts fresh if the app was fully
+        // backgrounded and stopped in between.
         app.ensureMarketDataStarted()
         paperTradingRepository.start()
     }

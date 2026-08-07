@@ -11,14 +11,10 @@ import org.example.test.bitget.TradingChartPipeline
 /**
  * Holds the market-data pipelines at application scope instead of activity scope.
  *
- * SplashActivity needs to know when the first candles have actually arrived (and keep
- * retrying quietly if they haven't, e.g. no internet) *before* it hands off to
- * MainActivity. If each activity created its own [TradingChartPipeline], MainActivity's
- * onStart() would call start() again right after Splash finished priming it, wiping the
- * freshly-loaded candles and dropping the user back into a loading skeleton — defeating the
- * whole point of waiting on the splash screen. Sharing one instance here, gated by
- * [ensureMarketDataStarted], lets Splash prime the connection and MainActivity simply pick
- * up the already-live stream.
+ * Keeping the pipelines here instead of inside MainActivity means they survive
+ * configuration changes and brief activity recreation without dropping the live stream.
+ * [ensureMarketDataStarted] is idempotent so it's safe to call from onStart() regardless
+ * of whether the pipelines are already running.
  */
 class SyncoraApplication : Application() {
 
@@ -49,7 +45,7 @@ class SyncoraApplication : Application() {
 
     private var marketDataStarted = false
 
-    /** Idempotent: safe to call from both SplashActivity and MainActivity.onStart(). */
+    /** Idempotent: safe to call repeatedly from MainActivity.onStart(). */
     fun ensureMarketDataStarted() {
         if (marketDataStarted) return
         marketDataStarted = true

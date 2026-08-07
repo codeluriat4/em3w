@@ -1,6 +1,7 @@
 package org.example.test.bitget
 
 import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -9,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -18,11 +20,11 @@ import kotlin.math.min
 
 enum class PipelineState {
     IDLE,
-    
+
     STREAMING_COLD,
-    
+
     SNAPSHOT_RETRYING,
-    
+
     LIVE,
     STOPPED,
 }
@@ -40,7 +42,7 @@ class TradingChartPipeline(
         const val TAG = "TradingChartPipeline"
         const val SNAPSHOT_BASE_RETRY_DELAY_MS = 1_500L
         const val SNAPSHOT_MAX_RETRY_DELAY_MS = 20_000L
-        
+
         const val MAX_QUEUED_TICKS = 2_000
         const val CACHE_PERSIST_INTERVAL_MS = 5_000L
     }
@@ -48,28 +50,28 @@ class TradingChartPipeline(
     private val buffer = KlineBuffer(bufferCapacity)
 
     private val _klines = MutableStateFlow<List<Kline>>(emptyList())
-    
+
     val klines: StateFlow<List<Kline>> = _klines.asStateFlow()
 
     private val _pipelineState = MutableStateFlow(PipelineState.IDLE)
     val pipelineState: StateFlow<PipelineState> = _pipelineState.asStateFlow()
 
     private val _usingCache = MutableStateFlow(false)
-    
+
     val usingCache: StateFlow<Boolean> = _usingCache.asStateFlow()
 
     val socketState: StateFlow<SocketState> = socket.state
 
     private val _currentTimeframe = MutableStateFlow(initialTimeframe)
-    
+
     val currentTimeframe: StateFlow<Timeframe> = _currentTimeframe.asStateFlow()
 
     private val _barDurationMillis = MutableStateFlow(initialTimeframe.durationMillis)
-    
+
     val barDurationMillis: StateFlow<Long> = _barDurationMillis.asStateFlow()
 
     private val _snapshotError = MutableStateFlow<String?>(null)
-    
+
     val snapshotError: StateFlow<String?> = _snapshotError.asStateFlow()
 
     val socketError: StateFlow<String?> = socket.lastError
@@ -78,7 +80,10 @@ class TradingChartPipeline(
     private var primed = false
     private val tempQueue = ArrayDeque<Kline>()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Unhandled exception in TradingChartPipeline coroutine scope", throwable)
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
     private var rawUpdatesJob: Job? = null
     private var snapshotJob: Job? = null
     private var cacheLoadJob: Job? = null
@@ -99,6 +104,7 @@ class TradingChartPipeline(
 
         rawUpdatesJob = socket.rawUpdates
             .onEach { batch -> onTicksArrived(batch) }
+            .catch { e -> Log.e(TAG, "Error processing kline tick batch; dropping batch", e) }
             .launchIn(scope)
         socket.connect()
 
@@ -106,7 +112,7 @@ class TradingChartPipeline(
     }
 
     fun stop() {
-        
+
         if (primed) {
             val finalSnapshot = buffer.snapshot()
             if (finalSnapshot.isNotEmpty()) {
@@ -129,7 +135,7 @@ class TradingChartPipeline(
     }
 
     private suspend fun performTimeframeSwitch(timeframe: Timeframe) {
-        
+
         rawUpdatesJob?.cancel()
         cacheLoadJob?.cancel()
         cachePersistJob?.cancel()
@@ -152,6 +158,7 @@ class TradingChartPipeline(
 
         rawUpdatesJob = socket.rawUpdates
             .onEach { batch -> onTicksArrived(batch) }
+            .catch { e -> Log.e(TAG, "Error processing kline tick batch; dropping batch", e) }
             .launchIn(scope)
         snapshotJob = scope.launch { loadSnapshotWithRetry() }
     }

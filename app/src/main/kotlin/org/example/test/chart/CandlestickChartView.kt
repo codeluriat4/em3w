@@ -36,7 +36,7 @@ class CandlestickChartView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     companion object {
-        /** Default stroke color for newly-placed drawings, matching the chart's accent blue. */
+
         val defaultDrawingColor: Int = Color.parseColor("#2962FF")
         const val defaultDrawingLineWidthDp: Float = 1.6f
     }
@@ -84,39 +84,8 @@ class CandlestickChartView @JvmOverloads constructor(
         return candles.subList(window.startIndex, window.endIndexExclusive)
     }
 
-    fun setRightOffsetBars(offsetBars: Double?) {
-        fixedRightOffsetBars = offsetBars?.coerceAtLeast(0.0)
-        clampTimeRangeOverride()
-        notifyTimeWindowChanged()
-        invalidate()
-    }
-
-    fun setRightMarginFraction(fraction: Double) {
-        rightMarginFraction = fraction.coerceAtLeast(0.0)
-        clampTimeRangeOverride()
-        notifyTimeWindowChanged()
-        invalidate()
-    }
-
-    /**
-     * A point anchored to an (absolute timestamp, price) pair -- pure chart space, decoupled
-     * from any particular candle array's positional layout. [time] is a candle's `startTime` (or
-     * an interpolated value between two candles), which stays meaningful no matter how the
-     * on-screen pixel mapping changes: panning/zooming only change the *viewport*, not [time]
-     * itself; a timeframe switch swaps in a whole new candle array where bar N no longer means
-     * the same instant; and the live buffer evicts its oldest candle once it's full, which
-     * silently shifts every later candle's array position by one. A raw array index would drift
-     * or point at the wrong candle in every one of those cases -- time does not.
-     */
     data class DrawingPoint(val time: Long, val price: Double)
 
-    /**
-     * A single placed (or in-progress) drawing-panel annotation. [color]/[opacityPercent]/
-     * [lineWidthDp]/[pattern] are the live-editable visual properties surfaced by the Drawing
-     * Context Toolbar while this drawing is selected; every drawing carries them (defaulting to
-     * the chart's standard drawing look) so the same rendering path applies whether or not the
-     * tool that placed it currently supports selection/styling.
-     */
     data class Drawing(
         val tool: DrawingTool,
         var p1: DrawingPoint,
@@ -127,13 +96,8 @@ class CandlestickChartView @JvmOverloads constructor(
         var pattern: LinePattern = LinePattern.SOLID,
     )
 
-    /** Invoked once a drawing has been fully placed, so the UI can clear the active tool. */
     var onDrawingPlaced: (() -> Unit)? = null
 
-    /**
-     * The live style of the currently-selected drawing, as surfaced to the Drawing Context
-     * Toolbar. Values mirror the corresponding fields on [Drawing].
-     */
     data class SelectedDrawingStyle(
         val color: Int,
         val opacityPercent: Int,
@@ -141,14 +105,8 @@ class CandlestickChartView @JvmOverloads constructor(
         val pattern: LinePattern,
     )
 
-    /**
-     * Invoked every time the selected drawing changes -- including selection, deselection, and
-     * deletion -- with the newly-selected drawing's style, or null if nothing is selected. The
-     * host UI uses this to show/hide/refresh the floating Drawing Context Toolbar.
-     */
     var onSelectedDrawingChanged: ((SelectedDrawingStyle?) -> Unit)? = null
 
-    /** The style of the currently-selected drawing, or null if nothing is selected. */
     fun selectedDrawingStyle(): SelectedDrawingStyle? {
         val index = selectedDrawingIndex ?: return null
         if (index !in drawings.indices) return null
@@ -156,21 +114,8 @@ class CandlestickChartView @JvmOverloads constructor(
         return SelectedDrawingStyle(d.color, d.opacityPercent, d.lineWidthDp, d.pattern)
     }
 
-    /**
-     * Invoked every time the on-screen bounding box of the currently-selected drawing could
-     * have changed -- selection, endpoint/body drag, pan, or zoom -- with its bounding box in
-     * this view's local coordinates, or null while nothing is selected. The host UI uses this to
-     * keep the floating Drawing Context Toolbar anchored to the line it's editing.
-     */
     var onSelectedDrawingBoundsChanged: ((RectF?) -> Unit)? = null
 
-    /**
-     * The chart's visible *content* region in this view's local coordinates: everything except
-     * the price axis (Y-axis) column on the right and the time axis (X-axis) row along the
-     * bottom, where axis labels live. Floating UI (the Drawing Context Toolbar and its popovers)
-     * should stay clamped inside this rect so it never obscures or overlaps an axis or its
-     * active labels.
-     */
     fun contentAreaPx(): RectF = RectF(
         0f,
         0f,
@@ -178,27 +123,12 @@ class CandlestickChartView @JvmOverloads constructor(
         (height - timeAxisHeight).coerceAtLeast(0f),
     )
 
-    /**
-     * The on-screen bounding box of the currently-selected drawing, in this view's local
-     * coordinates, or null if nothing is selected or the chart hasn't laid out data yet. Safe to
-     * call at any time (not just mid-draw), e.g. right when a selection is first made.
-     */
     fun selectedDrawingBoundsPx(): RectF? {
         val index = selectedDrawingIndex ?: return null
         if (!mapValid || index !in drawings.indices) return null
         return selectionScreenBounds(drawings[index])
     }
 
-    /**
-     * The bounding box the Drawing Context Toolbar anchors itself to for [drawing]. Two-point
-     * tools use the raw (p1, p2) anchor points -- not their extended-to-boundary rendering, for
-     * Ray/Extended Line -- so the toolbar hugs the actual draggable handles. One-point tools that
-     * render as a full-width/height line (Horizontal/Vertical/Cross Line, Horizontal Ray) use
-     * their full rendered extent instead of just the anchor point, so the toolbar centers itself
-     * along the visible line the way it would for a two-point line, rather than crowding one edge
-     * of it; [DrawingContextToolbar.updatePosition] handles degenerate (zero-width or
-     * zero-height) rects the same as any other.
-     */
     private fun selectionScreenBounds(drawing: Drawing): RectF {
         val x1 = timeToScreenX(drawing.p1.time)
         val y1 = priceToScreenY(drawing.p1.price)
@@ -213,7 +143,7 @@ class CandlestickChartView @JvmOverloads constructor(
             DrawingTool.HORIZONTAL_LINE -> RectF(area.left, y1, area.right, y1)
             DrawingTool.HORIZONTAL_RAY -> RectF(x1, y1, area.right, y1)
             DrawingTool.VERTICAL_LINE -> RectF(x1, area.top, x1, area.bottom)
-            else -> RectF(x1, y1, x1, y1) // Cross Line, or any other single-point tool.
+            else -> RectF(x1, y1, x1, y1)
         }
     }
 
@@ -222,7 +152,6 @@ class CandlestickChartView @JvmOverloads constructor(
         onSelectedDrawingBoundsChanged?.invoke(selectedDrawingBoundsPx())
     }
 
-    /** Applies [color] to the selected line immediately -- no confirmation step. */
     fun setSelectedLineColor(color: Int) {
         val index = selectedDrawingIndex ?: return
         if (index !in drawings.indices) return
@@ -231,7 +160,6 @@ class CandlestickChartView @JvmOverloads constructor(
         notifySelectedDrawingChanged()
     }
 
-    /** Applies [percent] (0-100) opacity to the selected line immediately -- no confirmation step. */
     fun setSelectedLineOpacity(percent: Int) {
         val index = selectedDrawingIndex ?: return
         if (index !in drawings.indices) return
@@ -240,7 +168,6 @@ class CandlestickChartView @JvmOverloads constructor(
         notifySelectedDrawingChanged()
     }
 
-    /** Applies [widthDp] stroke width to the selected line immediately -- no confirmation step. */
     fun setSelectedLineWidth(widthDp: Float) {
         val index = selectedDrawingIndex ?: return
         if (index !in drawings.indices) return
@@ -249,7 +176,6 @@ class CandlestickChartView @JvmOverloads constructor(
         notifySelectedDrawingChanged()
     }
 
-    /** Applies [pattern] to the selected line immediately -- no confirmation step. */
     fun setSelectedLinePattern(pattern: LinePattern) {
         val index = selectedDrawingIndex ?: return
         if (index !in drawings.indices) return
@@ -258,7 +184,6 @@ class CandlestickChartView @JvmOverloads constructor(
         notifySelectedDrawingChanged()
     }
 
-    /** Deletes the currently-selected drawing, if any, and clears the selection. */
     fun deleteSelectedDrawing() {
         val index = selectedDrawingIndex ?: return
         if (index !in drawings.indices) return
@@ -273,60 +198,29 @@ class CandlestickChartView @JvmOverloads constructor(
     private var activeDrawingTool: DrawingTool = DrawingTool.NONE
     private var pendingDrawing: Drawing? = null
 
-    // Tap-hold-drag-then-confirm bookkeeping for two-point tools (e.g. Trend Line). Positioning
-    // and confirming an anchor are two distinct steps: a tap-hold-drag gesture (ACTION_DOWN ->
-    // ACTION_MOVE -> ACTION_UP) provisionally drops and fine-tunes the anchor, but releasing the
-    // finger does NOT lock it in -- it just parks the anchor in an "awaiting confirm" state. A
-    // separate, subsequent tap decides its fate: tapping away from the anchor confirms it (and,
-    // for anchor 1, arms positioning of anchor 2); tapping directly back on the anchor handle
-    // re-opens it for repositioning instead. See [AnchorPlacementPhase] for the full state
-    // machine and [handleDrawingTouch] for the gesture-to-transition mapping.
     private val touchSlop by lazy { android.view.ViewConfiguration.get(context).scaledTouchSlop }
 
-    /**
-     * Fine-grained state for two-point tool placement. Positioning (drag) and confirming (a
-     * separate subsequent tap) are distinct steps for each anchor -- see the comment above.
-     */
     private enum class AnchorPlacementPhase {
-        /** No pending drawing yet; the next ACTION_DOWN starts positioning anchor 1. */
+
         IDLE,
-        /** A tap-hold-drag gesture is live; anchor 1 tracks the pointer. */
+
         POSITIONING_ANCHOR_1,
-        /** Anchor 1 was dropped by a drag-release; waiting for a confirm/re-engage tap. */
+
         AWAITING_CONFIRM_ANCHOR_1,
-        /** Anchor 1 is confirmed; a tap-hold-drag gesture is live for anchor 2. */
+
         POSITIONING_ANCHOR_2,
-        /** Anchor 2 was dropped; waiting for a confirm/re-engage tap. */
+
         AWAITING_CONFIRM_ANCHOR_2,
     }
 
     private var placementPhase = AnchorPlacementPhase.IDLE
 
-    /**
-     * True if screen point ([x], [y]) lands within the confirm/re-engage touch target around
-     * [anchor] -- i.e. tapping here re-opens that anchor for repositioning rather than confirming
-     * it. Reuses [handleGrabRadiusPx], the same generous finger-sized radius already used for
-     * grabbing a completed line's endpoint handles.
-     */
     private fun isTouchOnAnchor(x: Float, y: Float, anchor: DrawingPoint): Boolean {
         val ax = timeToScreenX(anchor.time)
         val ay = priceToScreenY(anchor.price)
         return hypot((x - ax).toDouble(), (y - ay).toDouble()) <= handleGrabRadiusPx
     }
 
-    /**
-     * Arms the chart to place the given [tool] on the next touch gesture: a single tap for
-     * one-point tools (horizontal/vertical/cross line). Two-point tools (trend line, ray, info
-     * line, extended line, trend angle) are placed anchor-by-anchor, and each anchor is placed in
-     * two distinct steps: a tap-hold-drag gesture positions it (with a live rubber-band preview
-     * once anchor 1 is confirmed and anchor 2 is being positioned), then a separate subsequent
-     * tap confirms it in place -- or, if that tap lands back on the anchor itself, re-opens it
-     * for repositioning. See [AnchorPlacementPhase].
-     *
-     * Selecting a tool immediately transitions the chart into drawing mode: a dashed "+"
-     * crosshair is armed right away so the first anchor point can be positioned precisely,
-     * before any touch/pointer movement has been reported.
-     */
     fun setActiveDrawingTool(tool: DrawingTool) {
         activeDrawingTool = tool
         pendingDrawing = null
@@ -337,10 +231,7 @@ class CandlestickChartView @JvmOverloads constructor(
         if (hadSelection) notifySelectedDrawingChanged()
         isDrawingCrosshairActive = tool != DrawingTool.NONE
         if (isDrawingCrosshairActive) {
-            // Seed the indicator at the last known pointer position if we have one (e.g. the
-            // panel was opened near where the user's finger/mouse already was), otherwise fall
-            // back to the center of the chart so the crosshair is visible the instant the tool
-            // is armed rather than waiting for the first move event.
+
             if (width > 0 && height > 0 && !hasSeededDrawingCrosshair) {
                 drawingCrosshairX = width / 2f
                 drawingCrosshairY = height / 2f
@@ -352,7 +243,6 @@ class CandlestickChartView @JvmOverloads constructor(
         invalidate()
     }
 
-    /** Removes every placed drawing from the chart. */
     fun clearDrawings() {
         if (drawings.isEmpty()) return
         val hadSelection = selectedDrawingIndex != null
@@ -363,27 +253,13 @@ class CandlestickChartView @JvmOverloads constructor(
         if (hadSelection) notifySelectedDrawingChanged()
     }
 
-    /** Removes only the most recently placed drawing. */
-    fun undoLastDrawing() {
-        if (drawings.isEmpty()) return
-        val lastIndex = drawings.size - 1
-        drawings.removeAt(lastIndex)
-        if (selectedDrawingIndex == lastIndex) {
-            selectedDrawingIndex = null
-            resetSelectionDrag()
-            notifySelectedDrawingChanged()
-        }
-        invalidate()
-    }
-
-    fun hasDrawings(): Boolean = drawings.isNotEmpty()
-
-    private val bullColor = Color.parseColor("#388e3c")
-    private val bearColor = Color.parseColor("#b22833")
-    private val bgColor = Color.parseColor("#131722")
-    private val gridColor = Color.parseColor("#2A2E39")
-    private val axisTextColor = Color.parseColor("#B2B5BE")
-    private val lastPriceColor = Color.parseColor("#787B86")
+    private val bullColor = Color.parseColor("#22D3C5")
+    private val bearColor = Color.parseColor("#FF5A6E")
+    private val bgColor = Color.parseColor("#050608")
+    private val gridColor = Color.parseColor("#141A20")
+    private val axisTextColor = Color.parseColor("#B8C6CF")
+    private val timeAxisTextColor = Color.parseColor("#8A96A3")
+    private val lastPriceColor = Color.parseColor("#8A96A3")
     private val skeletonBodyColor = Color.parseColor("#2A2E39")
     private val skeletonWickColor = Color.parseColor("#363C4E")
     private val skeletonHighlightColor = Color.parseColor("#4B5368")
@@ -397,7 +273,7 @@ class CandlestickChartView @JvmOverloads constructor(
     private val baseGridLineCount = 15
     private val minGridLineCount = 3
     private val maxGridLineCount = 25
-    
+
     private val minGridLineSpacingPx = dp(16f)
 
     private val minBodyPx = dp(1f)
@@ -414,7 +290,7 @@ class CandlestickChartView @JvmOverloads constructor(
     private val bgPaint = Paint().apply { color = bgColor; style = Paint.Style.FILL }
     private val gridPaint = Paint().apply {
         color = gridColor
-        alpha = 77 // 30% opacity
+        alpha = 140
         strokeWidth = 1f
         style = Paint.Style.STROKE
     }
@@ -424,7 +300,7 @@ class CandlestickChartView @JvmOverloads constructor(
     }
 
     private val timeAxisTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = axisTextColor
+        color = timeAxisTextColor
         textSize = dp(10.5f)
         textAlign = Paint.Align.CENTER
     }
@@ -447,7 +323,7 @@ class CandlestickChartView @JvmOverloads constructor(
     private val bearBodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = bearColor; style = Paint.Style.FILL; alpha = bodyFillAlpha
     }
-    
+
     private val bullBodyStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = bullColor; style = Paint.Style.STROKE; strokeWidth = bodyStrokeWidthPx
     }
@@ -460,7 +336,7 @@ class CandlestickChartView @JvmOverloads constructor(
     private val bearWickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = bearColor; strokeWidth = wickWidthPx
     }
-    
+
     private val bodyShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = bgColor; style = Paint.Style.FILL
     }
@@ -524,7 +400,7 @@ class CandlestickChartView @JvmOverloads constructor(
         textSize = dp(10.5f)
         textAlign = Paint.Align.CENTER
     }
-    private val countdownUrgentColor = Color.parseColor("#b22833")
+    private val countdownUrgentColor = Color.parseColor("#FF5A6E")
 
     private var candles: List<Kline> = emptyList()
     private val reusableRect = RectF()
@@ -560,9 +436,6 @@ class CandlestickChartView @JvmOverloads constructor(
     private var crosshairRawX = 0f
     private var crosshairRawY = 0f
 
-    // Drawing-mode activation crosshair: shown the instant a drawing tool is selected (before
-    // the first point is placed) so the user can position the first anchor precisely. Tracks
-    // mouse/stylus hover in real time, and touch position once the finger is down.
     private var isDrawingCrosshairActive = false
     private var hasSeededDrawingCrosshair = false
     private var drawingCrosshairX = 0f
@@ -616,46 +489,25 @@ class CandlestickChartView @JvmOverloads constructor(
         textAlign = Paint.Align.LEFT
     }
 
-    // -- Selection state for completed drawings, across every drawing tool --
-
-    /** Index into [drawings] of the currently selected line, or null if nothing is selected. */
     private var selectedDrawingIndex: Int? = null
 
-    /** Which part of the selected line a touch/drag gesture is currently manipulating. */
     private enum class DragTarget { P1, P2, BODY }
 
     private var selectionDragTarget: DragTarget? = null
 
-    /** True only once pointer travel since the down event has exceeded [touchSlop]; guards
-     *  against a stray tap/jitter being misread as an accidental edit. */
     private var isDraggingSelectedLine = false
     private var dragGestureStartX = 0f
     private var dragGestureStartY = 0f
 
-    // Anchor values captured at the start of a BODY drag, so the whole gesture's translation is
-    // computed as one delta from the original position rather than accumulating per-move
-    // rounding error, and so the line's slope/length are preserved exactly.
     private var dragStartP1: DrawingPoint? = null
     private var dragStartP2: DrawingPoint? = null
 
-    /** Touch target radius, in px, for grabbing an endpoint handle -- generously larger than the
-     *  handle's drawn radius so it's comfortable to grab with a fingertip. */
     private val handleGrabRadiusPx = dp(16f)
 
-    /**
-     * How close (in screen pixels) a tap needs to land to a drawing's rendered path -- its
-     * segment, ray, extended line, or full-width/height line, depending on the tool -- to count
-     * as a hit. Exposed as a mutable property so callers can tune the touch target -- e.g.
-     * widening it for touch input vs. a precise mouse -- without touching the hit-testing
-     * algorithm itself.
-     */
     var hitTestTolerancePx: Float = dp(14f)
 
     private val handleRadiusPx = dp(5f)
 
-    // Reusable, mutated-per-drawing paints for rendering a Drawing's own live style (color,
-    // opacity, width, pattern) instead of the chart's single fixed accent paint. Kept as fields
-    // rather than allocated per draw() call to avoid churn on every frame/invalidate.
     private val stylePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val styleSelectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val styleDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
@@ -663,8 +515,6 @@ class CandlestickChartView @JvmOverloads constructor(
     private val dashedPatternIntervals = floatArrayOf(dp(6f), dp(4f))
     private val dottedPatternIntervals = floatArrayOf(dp(1.5f), dp(4.5f))
 
-    /** Configures [paint] to render [drawing]'s own color/opacity/width/pattern. [extraWidthDp]
-     *  adds to the stroke width (used to make the selection overlay stand out a bit thicker). */
     private fun configureStylePaint(paint: Paint, drawing: Drawing, extraWidthDp: Float = 0f) {
         paint.color = drawing.color
         paint.alpha = (drawing.opacityPercent.coerceIn(0, 100) * 255 / 100)
@@ -694,10 +544,6 @@ class CandlestickChartView @JvmOverloads constructor(
         strokeWidth = dp(2f)
     }
 
-    // Cached from the most recent onDraw pass so touch handling can convert between screen
-    // coordinates and (array-position bar index, price) without recomputing the whole layout.
-    // This is purely a rendering-time convenience layer -- drawing anchors themselves are never
-    // stored in this space (see [DrawingPoint]); [timeToIndex] bridges the two on demand.
     private var mapMinPrice = 0.0
     private var mapMaxPrice = 0.0
     private var mapPriceAreaHeight = 0f
@@ -715,13 +561,6 @@ class CandlestickChartView @JvmOverloads constructor(
     private fun priceToScreenY(price: Double): Float =
         (((mapMaxPrice - price) / (mapMaxPrice - mapMinPrice)).toFloat()) * mapPriceAreaHeight
 
-    /**
-     * The current bar duration, preferring the value pushed in from the pipeline
-     * ([setBarDurationMillis], authoritative for the active timeframe) and falling back to
-     * inferring it from the spacing between the first two loaded candles when that hasn't
-     * arrived yet (e.g. very first frame after a timeframe switch, before the new duration is
-     * known). Returns 0 if neither is available.
-     */
     private fun currentBarDurationMillis(): Long {
         if (barDurationMillis > 0L) return barDurationMillis
         if (candles.size >= 2) {
@@ -731,14 +570,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return 0L
     }
 
-    /**
-     * Converts an absolute timestamp into a fractional bar index within the *currently loaded*
-     * [candles] array (index 0 == candles.first()). This is the bridge between chart-space
-     * anchors (which store [DrawingPoint.time], stable across pans/zooms/timeframe switches/
-     * buffer eviction) and the array-position index space that [indexToScreenX] and the rest of
-     * the rendering pipeline operate in. Recomputed fresh on every call rather than cached, so it
-     * always reflects whatever candle list is currently loaded.
-     */
     private fun timeToIndex(time: Long): Double {
         val base = candles.firstOrNull()?.startTime ?: return 0.0
         val duration = currentBarDurationMillis()
@@ -746,41 +577,18 @@ class CandlestickChartView @JvmOverloads constructor(
         return (time - base).toDouble() / duration.toDouble()
     }
 
-    /** Inverse of [timeToIndex]: the absolute timestamp a fractional array-index corresponds to. */
     private fun indexToTime(index: Double): Long {
         val base = candles.firstOrNull()?.startTime ?: return 0L
         val duration = currentBarDurationMillis()
         return base + (index * duration).roundToLong()
     }
 
-    /** Chart-space (time) straight to screen X, for rendering drawing anchors. */
     private fun timeToScreenX(time: Long): Float = indexToScreenX(timeToIndex(time))
 
-    /**
-     * Screen X straight to chart-space (time), for placing/dragging drawing anchors via touch.
-     * Rounds to the nearest whole candle index before converting back to a timestamp, so an
-     * anchor always locks onto the exact same real candle that [drawDrawingModeCrosshair]'s
-     * snapped indicator dot shows underneath the finger -- rather than a raw sub-candle
-     * timestamp that would leave the committed point visibly adrift from the crosshair that was
-     * guiding it.
-     */
     private fun screenToTime(x: Float): Long = indexToTime(round(screenToIndex(x)))
 
-    /**
-     * Unsnapped counterpart to [screenToTime]: converts screen X straight to a chart-space
-     * timestamp at full sub-candle precision, with no rounding to the nearest candle index.
-     * Used only for measuring a *delta* between two screen positions (see [DragTarget.BODY] in
-     * [applySelectionDrag]) -- snapping each endpoint of that delta independently would quantize
-     * a whole-line drag into visible per-candle jumps instead of a smooth, continuous translation.
-     */
     private fun screenToTimeRaw(x: Float): Long = indexToTime(screenToIndex(x))
 
-    /**
-     * Perpendicular distance, in screen pixels, from point ([px], [py]) to the line segment
-     * running from ([x1], [y1]) to ([x2], [y2]). Clamps the projection to the segment itself
-     * (rather than the infinite line) so a tap past either end is measured against the nearest
-     * endpoint instead of registering a false hit far off the drawn line.
-     */
     private fun distancePointToSegmentPx(
         px: Float,
         py: Float,
@@ -799,13 +607,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return hypot((px - projX).toDouble(), (py - projY).toDouble()).toFloat()
     }
 
-    /**
-     * Whether ([x], [y]) lands within [hitTestTolerancePx] of a one-point drawing's full rendered
-     * extent -- not just its anchor point ([ax], [ay]) -- since Horizontal Line, Horizontal Ray,
-     * Vertical Line, and Cross Line all render as full-width/height lines (or, for the ray, a
-     * line from the anchor to the chart's right edge) rather than a short segment. Mirrors the
-     * geometry each tool actually draws in [renderDrawing].
-     */
     private fun isNearOnePointDrawing(tool: DrawingTool, x: Float, y: Float, ax: Float, ay: Float): Boolean {
         val area = contentAreaPx()
         return when (tool) {
@@ -817,14 +618,6 @@ class CandlestickChartView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Whether ([x], [y]) lands within [hitTestTolerancePx] of a two-point drawing's full rendered
-     * path. Ray and Extended Line extend their raw (p1, p2) segment out to the chart's boundary
-     * (forward-only for Ray, both directions for Extended Line, mirroring [extendToBoundary] as
-     * used in [renderDrawing]) so a tap on the extended-but-invisible-past-p2 portion still hits;
-     * every other two-point tool (Trend Line, Info Line, Trend Angle) is hit-tested against the
-     * raw p1-p2 segment only.
-     */
     private fun isNearTwoPointDrawingBody(
         tool: DrawingTool,
         x: Float,
@@ -849,14 +642,6 @@ class CandlestickChartView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Hit-tests a tap/click at screen coordinates ([x], [y]) against every completed drawing,
-     * topmost (most recently placed) first, regardless of which tool placed it: [hitTestTolerancePx]
-     * is the touch tolerance against each tool's actual rendered path -- a segment, a ray/extended
-     * line reaching the chart boundary, or a full-width/height line -- so a tap doesn't need to
-     * land exactly on the drawn pixel path, just within that radius of it. Returns the index into
-     * [drawings] of the first drawing hit, or null if the tap didn't land near any of them.
-     */
     private fun findDrawingHit(x: Float, y: Float): Int? {
         if (!mapValid) return null
         for (index in drawings.indices.reversed()) {
@@ -874,19 +659,9 @@ class CandlestickChartView @JvmOverloads constructor(
         return null
     }
 
-    /**
-     * Entry point for manipulating the selected drawing via touch, called from
-     * [onTouchEvent] *before* pinch/pan/crosshair handling so a drag on a handle or the line's
-     * body always wins over panning or zooming the underlying chart -- the two never fight over
-     * the same gesture. Returns true if this event was consumed as part of an active or
-     * candidate line-manipulation gesture (in which case the caller must skip its own gesture
-     * handling entirely for this event), or false to let the event fall through to the chart's
-     * normal pan/pinch/crosshair/tap handling.
-     */
     private fun handleSelectionDragTouch(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN && selectionDragTarget != null) {
-            // A second finger arrived mid-drag: yield to the chart's own pinch handling rather
-            // than fighting over the gesture.
+
             resetSelectionDrag()
             invalidate()
             return false
@@ -907,8 +682,7 @@ class CandlestickChartView @JvmOverloads constructor(
                     return true
                 }
                 if (!isDraggingSelectedLine) {
-                    // Require a small movement threshold before treating this as an edit, so a
-                    // stray tap or finger jitter on a handle/line doesn't accidentally nudge it.
+
                     val traveled = hypot(
                         (event.x - dragGestureStartX).toDouble(),
                         (event.y - dragGestureStartY).toDouble(),
@@ -937,17 +711,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return true
     }
 
-    /**
-     * On pointer-down, checks whether the touch landed on the selected drawing's draggable
-     * anchor(s) or its rendered body, and if so arms a drag candidate (without yet mutating
-     * anything -- that only happens once [touchSlop] is exceeded, see [handleSelectionDragTouch]).
-     * One-point tools (Horizontal/Vertical/Cross Line, Horizontal Ray) have a single anchor, so a
-     * touch anywhere along their full rendered extent -- handle or body alike -- maps to
-     * [DragTarget.P1]. Two-point tools test handles first, with a generous [handleGrabRadiusPx]
-     * touch target so they take priority over the body when both are close to the touch point
-     * (e.g. near an endpoint), falling back to a body hit against the tool's actual rendered path
-     * (segment, ray, or extended line).
-     */
     private fun tryStartSelectionDrag(event: MotionEvent): Boolean {
         val index = selectedDrawingIndex ?: return false
         if (!mapValid || index !in drawings.indices) return false
@@ -978,16 +741,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return true
     }
 
-    /**
-     * Applies the in-progress drag to the selected drawing's anchor(s), always in chart
-     * coordinates (time + price) rather than pixels:
-     * - [DragTarget.P1] / [DragTarget.P2]: only that endpoint is re-anchored to the current
-     *   pointer position, in real time, leaving the other endpoint untouched.
-     * - [DragTarget.BODY]: both anchors are translated by the same (time, price) delta -- the
-     *   pointer's movement since the drag started, measured from the anchors' original captured
-     *   values rather than accumulated frame-to-frame -- so the line's slope and length are
-     *   preserved exactly.
-     */
     private fun applySelectionDrag(index: Int, target: DragTarget, x: Float, y: Float) {
         val drawing = drawings[index]
         when (target) {
@@ -996,10 +749,7 @@ class CandlestickChartView @JvmOverloads constructor(
             DragTarget.BODY -> {
                 val startP1 = dragStartP1 ?: return
                 val startP2 = dragStartP2 ?: return
-                // Deliberately unsnapped (see [screenToTimeRaw]): the two anchors keep their own
-                // already-snapped positions, and only the smooth pointer-travel delta since the
-                // drag started is added on top, so the whole line glides continuously instead of
-                // hopping between candles as the finger moves.
+
                 val deltaTime = screenToTimeRaw(x) - screenToTimeRaw(dragGestureStartX)
                 val deltaPrice = screenToPrice(y) - screenToPrice(dragGestureStartY)
                 drawing.p1 = DrawingPoint(startP1.time + deltaTime, startP1.price + deltaPrice)
@@ -1091,7 +841,7 @@ class CandlestickChartView @JvmOverloads constructor(
                 distanceX: Float,
                 distanceY: Float,
             ): Boolean {
-                
+
                 if (!isPinching && !isCrosshairActive) {
                     applyPan(distanceY)
                     applyTimePan(distanceX)
@@ -1105,9 +855,7 @@ class CandlestickChartView @JvmOverloads constructor(
             }
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                // A plain tap that wasn't a scroll, a double-tap, or a long-press: use it to
-                // select (or deselect) a completed drawing -- of any tool -- via hit testing
-                // rather than requiring the user to land exactly on the drawn pixel path.
+
                 if (isPinching) return false
                 val hitIndex = findDrawingHit(e.x, e.y)
                 if (hitIndex != selectedDrawingIndex) {
@@ -1134,9 +882,6 @@ class CandlestickChartView @JvmOverloads constructor(
             return handleDrawingTouch(event)
         }
 
-        // Dragging a selected drawing's handle or body takes precedence over panning and
-        // pinch-zooming the chart: if this event is part of a line-manipulation gesture, consume
-        // it here and skip the chart's own gesture handling for it entirely.
         if (handleSelectionDragTouch(event)) {
             parent?.requestDisallowInterceptTouchEvent(true)
             return true
@@ -1169,37 +914,22 @@ class CandlestickChartView @JvmOverloads constructor(
                 }
             }
         }
-        
+
         if (!isPinching) {
             panGestureDetector.onTouchEvent(event)
         }
-        
+
         parent?.requestDisallowInterceptTouchEvent(true)
         return true
     }
 
-    /**
-     * While a drawing tool is armed, hover input (mouse or stylus) updates the crosshair in real
-     * time -- mirroring how the crosshair tracks a finger drag once the touch actually goes down
-     * in [handleDrawingTouch]. Before the first anchor is placed this just moves the activation
-     * crosshair; once a two-point tool's first anchor is down, it also keeps re-anchoring the
-     * pending second point to the cursor so the rubber-band preview line follows the mouse even
-     * without the button held.
-     */
     override fun onHoverEvent(event: MotionEvent): Boolean {
         if (activeDrawingTool != DrawingTool.NONE) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
                     drawingCrosshairX = event.x
                     drawingCrosshairY = event.y
-                    // Once anchor 1 is confirmed, a mouse/stylus doesn't need to stay pressed for
-                    // the live preview to track it: re-anchor the pending second point to the
-                    // hovering cursor position (in chart coordinates) so the rubber-band preview
-                    // line keeps following until the next click drops it. Only active while
-                    // anchor 2 is actually being positioned -- not while either anchor is merely
-                    // awaiting its confirm/re-engage tap, and not while anchor 1 itself is being
-                    // dragged -- so a stray hover event can't hijack an in-progress gesture or
-                    // silently move a point that's meant to be frozen pending confirmation.
+
                     if (placementPhase == AnchorPlacementPhase.POSITIONING_ANCHOR_2) {
                         pendingDrawing?.let { pending ->
                             pending.p2 = DrawingPoint(screenToTime(event.x), screenToPrice(event.y))
@@ -1214,21 +944,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return super.onHoverEvent(event)
     }
 
-    /**
-     * Drives the [AnchorPlacementPhase] state machine for two-point tools (and the simple
-     * single-tap path for one-point tools). Positioning (tap-hold-drag) and confirming (a
-     * separate subsequent tap) are distinct steps for each anchor:
-     *
-     * - ACTION_DOWN while [AnchorPlacementPhase.IDLE] starts positioning anchor 1.
-     * - ACTION_MOVE while a `POSITIONING_*` phase is active re-anchors the point being placed to
-     *   the pointer, live.
-     * - ACTION_UP while a `POSITIONING_*` phase is active drops the anchor wherever the pointer
-     *   released, but does NOT lock it in -- it moves to the matching `AWAITING_CONFIRM_*` phase.
-     * - ACTION_DOWN while an `AWAITING_CONFIRM_*` phase is active is the confirming/re-engaging
-     *   tap: [isTouchOnAnchor] decides whether it lands back on the anchor (re-open positioning)
-     *   or away from it (confirm and advance -- to positioning anchor 2, or to committing the
-     *   finished drawing).
-     */
     private fun handleDrawingTouch(event: MotionEvent): Boolean {
         if (!mapValid) return true
         val tool = activeDrawingTool
@@ -1249,10 +964,7 @@ class CandlestickChartView @JvmOverloads constructor(
 
                 when (placementPhase) {
                     AnchorPlacementPhase.IDLE -> {
-                        // Begins anchor 1's own tap-hold-drag gesture: provisionally drop the
-                        // point in chart coordinates (time + price, never raw pixels, so it
-                        // survives pan/zoom, timeframe switches, and live-buffer eviction). Both
-                        // p1 and p2 start out coincident -- there's no line to preview yet.
+
                         val anchor = DrawingPoint(screenToTime(event.x), screenToPrice(event.y))
                         pendingDrawing = Drawing(tool, anchor, anchor)
                         placementPhase = AnchorPlacementPhase.POSITIONING_ANCHOR_1
@@ -1262,13 +974,10 @@ class CandlestickChartView @JvmOverloads constructor(
                         if (pending == null) {
                             placementPhase = AnchorPlacementPhase.IDLE
                         } else if (isTouchOnAnchor(event.x, event.y, pending.p1)) {
-                            // Tapped directly on the pending anchor: re-engage repositioning
-                            // instead of confirming it.
+
                             placementPhase = AnchorPlacementPhase.POSITIONING_ANCHOR_1
                         } else {
-                            // Tapped away from the anchor: confirm anchor 1 in place and arm
-                            // positioning of anchor 2, seeded at this same tap so the dashed
-                            // preview line has somewhere to start from immediately.
+
                             val seed = DrawingPoint(screenToTime(event.x), screenToPrice(event.y))
                             pending.p2 = seed
                             placementPhase = AnchorPlacementPhase.POSITIONING_ANCHOR_2
@@ -1281,17 +990,15 @@ class CandlestickChartView @JvmOverloads constructor(
                             placementPhase = AnchorPlacementPhase.IDLE
                         } else when {
                             isTouchOnAnchor(event.x, event.y, p2) -> {
-                                // Tapped directly on anchor 2: re-engage repositioning.
+
                                 placementPhase = AnchorPlacementPhase.POSITIONING_ANCHOR_2
                             }
                             isTouchOnAnchor(event.x, event.y, pending.p1) -> {
-                                // Tapped directly on anchor 1: re-open IT for repositioning too,
-                                // even though anchor 2 already exists -- anchor 2 stays put.
+
                                 placementPhase = AnchorPlacementPhase.POSITIONING_ANCHOR_1
                             }
                             else -> {
-                                // Tapped away from both anchors: confirm anchor 2 and commit the
-                                // finished drawing.
+
                                 drawings.add(pending)
                                 pendingDrawing = null
                                 placementPhase = AnchorPlacementPhase.IDLE
@@ -1299,9 +1006,7 @@ class CandlestickChartView @JvmOverloads constructor(
                             }
                         }
                     }
-                    // A DOWN shouldn't normally arrive while a POSITIONING_* phase is already
-                    // live (that phase's own gesture hasn't lifted yet), but guard defensively
-                    // rather than corrupting the pending drawing.
+
                     AnchorPlacementPhase.POSITIONING_ANCHOR_1,
                     AnchorPlacementPhase.POSITIONING_ANCHOR_2 -> Unit
                 }
@@ -1314,8 +1019,7 @@ class CandlestickChartView @JvmOverloads constructor(
                 val livePoint = DrawingPoint(screenToTime(event.x), screenToPrice(event.y))
                 when (placementPhase) {
                     AnchorPlacementPhase.POSITIONING_ANCHOR_1 -> {
-                        // p1 and p2 stay coincident while anchor 1 is being fine-tuned -- there's
-                        // no second anchor yet, so no line to preview.
+
                         pending.p1 = livePoint
                         pending.p2 = livePoint
                     }
@@ -1332,8 +1036,7 @@ class CandlestickChartView @JvmOverloads constructor(
                     val dropped = DrawingPoint(screenToTime(event.x), screenToPrice(event.y))
                     when (placementPhase) {
                         AnchorPlacementPhase.POSITIONING_ANCHOR_1 -> {
-                            // Drops anchor 1 wherever the pointer released -- but this does NOT
-                            // lock it in. It now awaits a separate confirm/re-engage tap.
+
                             pending.p1 = dropped
                             pending.p2 = dropped
                             placementPhase = AnchorPlacementPhase.AWAITING_CONFIRM_ANCHOR_1
@@ -1344,9 +1047,7 @@ class CandlestickChartView @JvmOverloads constructor(
                             pending.p2 = dropped
                             placementPhase = AnchorPlacementPhase.AWAITING_CONFIRM_ANCHOR_2
                         }
-                        // Lifting during an AWAITING_CONFIRM_* phase is just the release of the
-                        // confirming/re-engaging tap whose ACTION_DOWN already ran above; no
-                        // further state change is needed here.
+
                         else -> Unit
                     }
                 }
@@ -1359,23 +1060,17 @@ class CandlestickChartView @JvmOverloads constructor(
                         placementPhase = AnchorPlacementPhase.IDLE
                     }
                     placementPhase == AnchorPlacementPhase.POSITIONING_ANCHOR_1 -> {
-                        // Anchor 1 never had a prior confirmed position -- discard the whole
-                        // in-progress drawing, exactly as if the tool had just been armed.
+
                         pendingDrawing = null
                         placementPhase = AnchorPlacementPhase.IDLE
                     }
                     placementPhase == AnchorPlacementPhase.POSITIONING_ANCHOR_2 -> {
-                        // Anchor 1 is already confirmed -- don't throw the whole drawing away.
-                        // Collapse the rubber-band line back onto anchor 1 and fall back to
-                        // awaiting anchor 1's confirm/re-engage tap, exactly as if the second
-                        // anchor's gesture had never started.
+
                         pending.p2 = pending.p1
                         placementPhase = AnchorPlacementPhase.AWAITING_CONFIRM_ANCHOR_1
                     }
                     else -> {
-                        // Interrupted mid-AWAITING_CONFIRM_* (e.g. a second finger arrived right
-                        // as the confirming tap landed): stay put in the same phase rather than
-                        // losing the pending drawing.
+
                     }
                 }
                 invalidate()
@@ -1386,12 +1081,6 @@ class CandlestickChartView @JvmOverloads constructor(
         return true
     }
 
-    /**
-     * Resets all drawing-mode state: clears the armed tool so [onTouchEvent] routes back to
-     * normal pan/zoom/crosshair handling, hides the dashed drawing-mode crosshair overlay, resets
-     * the anchor-placement state machine, and notifies the host UI (via [onDrawingPlaced]) so
-     * panel/toolbar selection is cleared too.
-     */
     private fun finishDrawingTool() {
         activeDrawingTool = DrawingTool.NONE
         isDrawingCrosshairActive = false
@@ -1425,7 +1114,7 @@ class CandlestickChartView @JvmOverloads constructor(
 
         val span = current.maxPrice - current.minPrice
         val deltaPrice = (distanceYPx / priceAreaHeight).toDouble() * span
-        
+
         setOverride(current.minPrice - deltaPrice, current.maxPrice - deltaPrice)
     }
 
@@ -1622,7 +1311,7 @@ class CandlestickChartView @JvmOverloads constructor(
         val visibleCandles = data.map { it.second }
         if (data.isEmpty()) {
             mapValid = false
-            
+
             val label = "Waiting for live candles…"
             val textWidth = emptyStatePaint.measureText(label)
             reusableRect.set(
@@ -1719,7 +1408,7 @@ class CandlestickChartView @JvmOverloads constructor(
                 centerX + bodyWidth / 2f,
                 if (bottom - top < minBodyPx) top + minBodyPx else bottom,
             )
-            
+
             reusableShadowRect.set(
                 reusableRect.left - shadowPaddingPx,
                 reusableRect.top - shadowPaddingPx,
@@ -1830,17 +1519,14 @@ class CandlestickChartView @JvmOverloads constructor(
         val slotWidth = timeRange.barSpacingPx
         if (!isCrosshairActive || candles.isEmpty() || slotWidth <= 0f) return
 
-        // Horizontal line follows the finger freely and reports the price under it.
         val y = crosshairRawY.coerceIn(0f, priceAreaHeight)
         canvas.drawLine(0f, y, chartRight, y, crosshairLinePaint)
 
-        // Vertical line snaps to the center of the nearest real candle and reports its time.
         val leftIndex = timeRange.rightIndex - chartRight / slotWidth
         val index = round(crosshairRawX / slotWidth + leftIndex).toInt().coerceIn(0, candles.size - 1)
         val x = ((index - leftIndex) * slotWidth).toFloat()
         canvas.drawLine(x, 0f, x, chartBottom, crosshairLinePaint)
 
-        // Price label pinned to the right-hand price axis.
         val price = maxPrice - (y / priceAreaHeight) * (maxPrice - minPrice)
         val priceLabel = formatPrice(price)
         val priceTextWidth = crosshairPriceTextPaint.measureText(priceLabel)
@@ -1855,7 +1541,6 @@ class CandlestickChartView @JvmOverloads constructor(
             crosshairPriceTextPaint,
         )
 
-        // Time label pinned to the bottom time axis.
         val timeLabel = crosshairTimeFormat.format(java.util.Date(candles[index].startTime))
         val timeTextWidth = crosshairTimeTextPaint.measureText(timeLabel)
         val pillHalfWidth = timeTextWidth / 2f + dp(6f)
@@ -1869,19 +1554,6 @@ class CandlestickChartView @JvmOverloads constructor(
         )
     }
 
-    /**
-     * Renders the "+" activation crosshair shown the instant a drawing tool is selected. Mirrors
-     * [drawCrosshair]'s visual language (dashed lines, price/time pill labels) but is driven by
-     * [isDrawingCrosshairActive] instead of long-press, and snaps precisely: the horizontal
-     * dashed line reports the exact price under it on the Y-axis, while the vertical dashed line
-     * locks onto the nearest real candle index on the X-axis so each anchor always lands on a
-     * valid time/price target.
-     *
-     * Stays fully visible and interactive both before the first anchor is placed *and* while a
-     * two-point tool's second anchor is still pending -- it keeps tracking [drawingCrosshairX] /
-     * [drawingCrosshairY], which the touch and hover handlers update continuously, so the
-     * crosshair and the rubber-band preview line move together.
-     */
     private fun drawDrawingModeCrosshair(
         canvas: Canvas,
         timeRange: LogicalTimeRange,
@@ -1894,22 +1566,16 @@ class CandlestickChartView @JvmOverloads constructor(
         val slotWidth = timeRange.barSpacingPx
         if (!isDrawingCrosshairActive || candles.isEmpty() || slotWidth <= 0f) return
 
-        // Horizontal dashed line: follows the pointer/touch freely and snaps to the exact price
-        // level under it on the Y-axis.
         val y = drawingCrosshairY.coerceIn(0f, priceAreaHeight)
         canvas.drawLine(0f, y, chartRight, y, crosshairLinePaint)
 
-        // Vertical dashed line: snaps to the center of the nearest real candle so the first
-        // point locks onto a valid time/candle index on the X-axis.
         val leftIndex = timeRange.rightIndex - chartRight / slotWidth
         val index = round(drawingCrosshairX / slotWidth + leftIndex).toInt().coerceIn(0, candles.size - 1)
         val x = ((index - leftIndex) * slotWidth).toFloat()
         canvas.drawLine(x, 0f, x, chartBottom, crosshairLinePaint)
 
-        // Mark the exact intersection where the first tap will anchor the drawing.
         canvas.drawCircle(x, y, dp(3f), drawingPointPaint)
 
-        // Price label pinned to the right-hand price axis.
         val price = maxPrice - (y / priceAreaHeight) * (maxPrice - minPrice)
         val priceLabel = formatPrice(price)
         val priceTextWidth = crosshairPriceTextPaint.measureText(priceLabel)
@@ -1922,7 +1588,6 @@ class CandlestickChartView @JvmOverloads constructor(
             crosshairPriceTextPaint,
         )
 
-        // Time label pinned to the bottom time axis.
         val timeLabel = crosshairTimeFormat.format(java.util.Date(candles[index].startTime))
         val timeTextWidth = crosshairTimeTextPaint.measureText(timeLabel)
         val pillHalfWidth = timeTextWidth / 2f + dp(6f)
@@ -1948,11 +1613,7 @@ class CandlestickChartView @JvmOverloads constructor(
         }
         pendingDrawing?.let { pending ->
             renderDrawing(canvas, pending, chartRight, chartBottom, isPending = true)
-            // While an anchor is awaiting its confirm/re-engage tap (positioning has finished
-            // but the anchor hasn't been locked in yet), ring it with the same handle affordance
-            // used for a completed line's endpoints, so it visually reads as "tap here to
-            // reposition, tap elsewhere to confirm" rather than blending into the plain preview
-            // dot used while actively dragging.
+
             when (placementPhase) {
                 AnchorPlacementPhase.AWAITING_CONFIRM_ANCHOR_1 -> {
                     drawSelectionHandle(canvas, timeToScreenX(pending.p1.time), priceToScreenY(pending.p1.price))
@@ -1965,22 +1626,10 @@ class CandlestickChartView @JvmOverloads constructor(
                 else -> Unit
             }
         }
-        // Report the selected line's live bounding box every draw pass -- not just on
-        // selection/deselection -- so the host UI can keep the Drawing Context Toolbar tracking
-        // it through endpoint/body drags, pans, and zooms.
+
         if (selectedDrawingIndex != null) onSelectedDrawingBoundsChanged?.invoke(selectedBounds)
     }
 
-    /**
-     * Renders the selected-state affordances for a completed drawing, whatever tool placed it:
-     * the path itself is re-stroked with the drawing's own live style (thicker, fully opaque) to
-     * highlight it against the unselected drawings, using the same per-tool geometry as
-     * [renderDrawing] (segment, ray/extended line reaching the chart boundary, or full-width/
-     * height line) so the highlight always matches what's actually drawn. A draggable handle is
-     * rendered over each of the drawing's real anchor points -- one for a one-point tool
-     * (Horizontal/Vertical/Cross Line, Horizontal Ray), two for a two-point tool -- so the user
-     * has a clear, larger target to grab for repositioning it.
-     */
     private fun drawSelectionOverlay(canvas: Canvas, drawing: Drawing) {
         val x1 = timeToScreenX(drawing.p1.time)
         val y1 = priceToScreenY(drawing.p1.price)
@@ -2033,8 +1682,6 @@ class CandlestickChartView @JvmOverloads constructor(
         val x2 = timeToScreenX(p2.time)
         val y2 = priceToScreenY(p2.price)
 
-        // Pending (still-being-placed) drawings keep the fixed dashed preview look; completed
-        // drawings render with their own live-editable color/opacity/width/pattern.
         val linePaint: Paint
         val dotPaint: Paint
         if (isPending) {
@@ -2098,10 +1745,6 @@ class CandlestickChartView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Extends the ray/line that passes through (fromX,fromY) and (toX,toY) forward, past
-     * (toX,toY), until it hits the edge of the chart plotting area.
-     */
     private fun extendToBoundary(
         fromX: Float,
         fromY: Float,
@@ -2154,7 +1797,6 @@ class CandlestickChartView @JvmOverloads constructor(
         )
     }
 
-    /** Info Line label: price change, percentage change, and bar count between the two points. */
     private fun drawInfoLineLabel(
         canvas: Canvas,
         p1: DrawingPoint,
@@ -2181,7 +1823,6 @@ class CandlestickChartView @JvmOverloads constructor(
         drawPillLabel(canvas, (x1 + x2) / 2f, (y1 + y2) / 2f - dp(16f), label)
     }
 
-    /** Trend Angle label: the angle of the drawn line relative to horizontal, in degrees. */
     private fun drawAngleLabel(canvas: Canvas, x1: Float, y1: Float, x2: Float, y2: Float) {
         val angleDeg = Math.toDegrees(atan2((y1 - y2).toDouble(), (x2 - x1).toDouble()))
         val label = String.format(java.util.Locale.US, "%.1f°", angleDeg)
@@ -2295,6 +1936,10 @@ class CandlestickChartView @JvmOverloads constructor(
         priceAreaHeight: Float,
         priceToY: (Double) -> Float,
     ): Float {
+        val activeColor = if (lastCandle.close >= lastCandle.open) bullColor else bearColor
+        lastPricePaint.color = activeColor
+        lastPriceBgPaint.color = activeColor
+
         val clamped = lastCandle.close.coerceIn(minPrice, maxPrice)
         val y = priceToY(clamped)
         canvas.drawLine(0f, y, chartRight, y, lastPricePaint)

@@ -16,7 +16,7 @@ data class ChartPriceRange(val minPrice: Double, val maxPrice: Double) {
                 if (c.high > maxPrice) maxPrice = c.high
             }
             if (minPrice == maxPrice) {
-                
+
                 minPrice -= 1.0
                 maxPrice += 1.0
             }

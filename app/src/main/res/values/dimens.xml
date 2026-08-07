@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Fixed height for the chart/heatmap surface now that it lives inside a scrolling
-         container instead of a weight-based fill of the whole screen. -->
     <dimen name="chart_surface_height">420dp</dimen>
 </resources>

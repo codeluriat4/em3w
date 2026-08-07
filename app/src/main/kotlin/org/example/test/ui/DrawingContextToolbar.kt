@@ -18,23 +18,12 @@ import org.example.test.R
 import org.example.test.chart.CandlestickChartView
 import org.example.test.chart.LinePattern
 
-/**
- * Floating toolbar shown anchored near the top of the chart whenever a placed drawing -- of any
- * tool (Trend Line, Ray, Info Line, Extended Line, Trend Angle, Horizontal Line, Horizontal Ray,
- * Vertical Line, Cross Line) -- is selected. Hosts a Color Picker (preset swatches, recent/custom
- * colors, opacity slider), a Line Width dropdown (including an ultra-thin 0.5px option for fine
- * vector strokes), a single Line Pattern button -- labeled with an em dash (—) -- that opens a
- * dropdown of Solid/Dashed/Dotted options, and a Delete button. Every control applies to the
- * target drawing immediately -- there is no confirm/apply step anywhere in this toolbar; picking
- * a width or pattern triggers an immediate recalculation and redraw of the drawing's vector path.
- */
 class DrawingContextToolbar @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
 ) : LinearLayout(context, attrs, defStyleAttr) {
 
-    /** The four style changes this toolbar can make to the selected drawing, plus delete. */
     class Callbacks(
         val onColorChange: (Int) -> Unit,
         val onOpacityChange: (Int) -> Unit,
@@ -60,7 +49,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
     private var widthPopup: PopupWindow? = null
     private var patternPopup: PopupWindow? = null
 
-    /** Renders e.g. 0.5f as "0.5px" and 2f as "2px" -- whole values never show a trailing ".0". */
     private fun formatWidthLabel(widthDp: Float): String {
         val trimmed = if (widthDp == widthDp.toInt().toFloat()) {
             widthDp.toInt().toString()
@@ -73,9 +61,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
     private var callbacks: Callbacks? = null
     private var currentStyle: CandlestickChartView.SelectedDrawingStyle? = null
 
-    // The chart this toolbar floats over. Kept so the toolbar can pull the chart's safe content
-    // area (i.e. everything except the price/time axes) and the selected drawing's live
-    // on-screen bounds, both needed to keep the toolbar -- and its popovers -- clear of the axes.
     private var chartView: CandlestickChartView? = null
     private var lastAnchorBoundsPx: RectF? = null
 
@@ -104,12 +89,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
         addView(buildDeleteButton())
     }
 
-    /**
-     * Wires up the toolbar's controls and binds it to the chart it floats over; call once, e.g.
-     * right after inflation. Binding to [chart] lets the toolbar read its safe content area (the
-     * region excluding the price/time axes) and re-anchor itself to the selected drawing's
-     * live on-screen position as it's dragged, or as the chart is panned/zoomed.
-     */
     fun bind(chart: CandlestickChartView, callbacks: Callbacks) {
         this.chartView = chart
         this.callbacks = callbacks
@@ -123,7 +102,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
         }
     }
 
-    /** Shows the toolbar reflecting [style], the currently-selected drawing's live style. */
     fun showForStyle(style: CandlestickChartView.SelectedDrawingStyle) {
         currentStyle = style
         colorSwatch.background = GradientDrawable().apply {
@@ -137,7 +115,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
         updatePosition()
     }
 
-    /** Hides the toolbar and dismisses any of its own open popups (width dropdown, color picker). */
     fun hide() {
         currentStyle = null
         lastAnchorBoundsPx = null
@@ -149,14 +126,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
         visibility = View.GONE
     }
 
-    /**
-     * Repositions the toolbar so it stays fully inside the chart's safe content area (never
-     * overlapping the price axis, time axis, or their active labels), while hugging the selected
-     * drawing's bounding box: centered horizontally on it, placed just above it when there's
-     * room, falling back to just below it otherwise. Falls back to a top-centered default
-     * position when there's no drawing to anchor to yet. Safe to call before layout -- it defers
-     * to the next pre-draw pass once this view's own size is known.
-     */
     private fun updatePosition() {
         val chart = chartView ?: return
         if (width == 0 || height == 0) {
@@ -188,11 +157,6 @@ class DrawingContextToolbar @JvmOverloads constructor(
         y = targetY.coerceIn(minY, maxY)
     }
 
-    /**
-     * The chart's safe content area translated into screen coordinates, for popovers (which
-     * render in their own window above everything) to clamp themselves against. Null if this
-     * toolbar hasn't been bound to a chart yet.
-     */
     private fun chartSafeAreaScreen(): Rect? {
         val chart = chartView ?: return null
         if (chart.width == 0 || chart.height == 0) return null
@@ -318,7 +282,7 @@ class DrawingContextToolbar @JvmOverloads constructor(
                 pattern = LinePattern.SOLID
                 lineColor = if (isActive) accentColor else iconIdleColor
             }
-            // The sample line's own thickness communicates the width option directly.
+
             sample.scaleY = (0.6f + widthDp * 0.25f)
             val text = TextView(context).apply {
                 text = formatWidthLabel(widthDp)
@@ -355,14 +319,9 @@ class DrawingContextToolbar @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Builds the consolidated Line Pattern control: a single button labeled with an em dash (—)
-     * that opens a dropdown of Solid/Dashed/Dotted options, replacing what was previously three
-     * separate always-visible pattern buttons.
-     */
     private fun buildPatternButton(): View {
         val label = TextView(context).apply {
-            text = "\u2014" // em dash (—)
+            text = "\u2014"
             textSize = 15f
             setTextColor(labelColor)
         }

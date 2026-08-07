@@ -11,7 +11,7 @@ data class Kline(
     val usdtVolume: Double,
 ) {
     companion object {
-        
+
         fun fromWsJsonArray(row: org.json.JSONArray): Kline = Kline(
             startTime = row.getString(0).toLong(),
             open = row.getString(1).toDouble(),

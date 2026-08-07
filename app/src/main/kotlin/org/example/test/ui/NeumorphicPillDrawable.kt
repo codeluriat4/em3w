@@ -18,26 +18,27 @@ class NeumorphicPillDrawable(
 ) : Drawable() {
 
     private val cornerRadiusDp = 32f
-    private val surfaceColor = Color.parseColor("#121212")
+    private val activeSurfaceColor = Color.parseColor("#102A2B")
+    private val inactiveSurfaceColor = Color.TRANSPARENT
 
     private val highlightAlpha = pctToAlpha(0.08f)
     private val highlightOffsetDp = -1f
     private val highlightBlurDp = 18f
 
-    private val shadowAlpha = pctToAlpha(0.32f)
-    private val shadowOffsetDp = 6f
-    private val shadowBlurDp = 24f
+    private val shadowAlpha = pctToAlpha(0.20f)
+    private val shadowOffsetDp = 4f
+    private val shadowBlurDp = 20f
     private val shadowSpreadDp = -4f
 
-    private val aoAlpha = pctToAlpha(0.18f)
+    private val aoAlpha = pctToAlpha(0.12f)
     private val aoBlurDp = 12f
 
-    private val glowAlpha = pctToAlpha(0.03f)
-    private val glowBlurDp = 28f
+    private val glowAlpha = pctToAlpha(0.05f)
+    private val glowBlurDp = 24f
 
     private val surfacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = surfaceColor
+        color = if (selected) activeSurfaceColor else inactiveSurfaceColor
     }
 
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -82,14 +83,16 @@ class NeumorphicPillDrawable(
         val surfaceBottom = b.bottom - halo
         if (surfaceRight <= surfaceLeft || surfaceBottom <= surfaceTop) return
 
+        if (!selected) return
+
         val cornerPx = cornerRadiusDp.px()
         val offsetPx = shadowOffsetDp.px()
         val highlightOffsetPx = highlightOffsetDp.px()
         val spreadPx = shadowSpreadDp.px()
 
-        val shadowDx = if (selected) -offsetPx else offsetPx
-        val shadowDy = if (selected) -offsetPx else offsetPx
-        val highlightDy = if (selected) -highlightOffsetPx else highlightOffsetPx
+        val shadowDx = -offsetPx
+        val shadowDy = -offsetPx
+        val highlightDy = -highlightOffsetPx
 
         scratch.set(surfaceLeft, surfaceTop, surfaceRight, surfaceBottom)
         canvas.drawRoundRect(scratch, cornerPx, cornerPx, glowPaint)
@@ -106,6 +109,7 @@ class NeumorphicPillDrawable(
         canvas.drawRoundRect(scratch, cornerPx, cornerPx, highlightPaint)
 
         scratch.set(surfaceLeft, surfaceTop, surfaceRight, surfaceBottom)
+        surfacePaint.color = activeSurfaceColor
         canvas.drawRoundRect(scratch, cornerPx, cornerPx, surfacePaint)
 
         val aoInset = aoPaint.strokeWidth
@@ -119,7 +123,7 @@ class NeumorphicPillDrawable(
     }
 
     override fun setAlpha(alpha: Int) {
-        
+
     }
 
     override fun setColorFilter(colorFilter: ColorFilter?) {
@@ -135,7 +139,7 @@ class NeumorphicPillDrawable(
     private fun pctToAlpha(pct: Float): Int = (pct * 255f).roundToInt().coerceIn(0, 255)
 
     companion object {
-        
+
         fun applyTo(view: View, drawable: NeumorphicPillDrawable) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             view.background = drawable

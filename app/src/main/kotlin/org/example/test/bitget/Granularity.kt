@@ -9,14 +9,14 @@ object Granularity {
         if (amount <= 0) return null
 
         val unitMillis = when (unit) {
-            
+
             'm' -> 60_000L
-            
+
             'H' -> 60 * 60_000L
-            
+
             'D' -> 24 * 60 * 60_000L
             'W' -> 7 * 24 * 60 * 60_000L
-            
+
             'M' -> 30 * 24 * 60 * 60_000L
             else -> return null
         }

@@ -1,224 +1,279 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<org.example.test.ui.SmartMoneyRevealLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/revealLayout"
+    android:id="@+id/chartSectionContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:orientation="vertical"
+    android:background="#050608">
 
-    <!-- Bottom layer: revealed as the chart section collapses to 40% height. -->
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/dashboardScrollView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#000000"
-        android:fillViewport="true"
-        android:overScrollMode="never">
-
-        <include layout="@layout/smart_money_dashboard_content" />
-
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- Top layer: the existing chart screen, collapses from full-screen down to a fixed
-         40% of the container height, driven by SmartMoneyRevealLayout. -->
     <LinearLayout
-        android:id="@+id/chartSectionContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:background="#000000">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:gravity="top">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="14dp"
-            android:gravity="top">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <FrameLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="30dp">
-
-                        <TextView
-                            android:id="@+id/symbolText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textSize="22sp"
-                            android:textStyle="bold"
-                            android:textColor="#EAECEF"
-                            android:text="@string/symbol_label" />
-
-                        <org.example.test.ui.SkeletonLoadingView
-                            android:id="@+id/symbolSkeleton"
-                            android:layout_width="104dp"
-                            android:layout_height="24dp"
-                            android:layout_gravity="center_vertical"
-                            android:visibility="gone" />
-                    </FrameLayout>
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginStart="2dp"
-                        android:src="@drawable/ic_chevron_down"
-                        android:contentDescription="@null" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="13sp"
-                        android:textColor="#B2B5BE"
-                        android:text="@string/contract_label" />
-
-                    <View
-                        android:id="@+id/liveDot"
-                        android:layout_width="8dp"
-                        android:layout_height="8dp"
-                        android:layout_marginStart="10dp"
-                        android:background="@drawable/bg_live_dot" />
-
-                    <TextView
-                        android:id="@+id/liveText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="5dp"
-                        android:textSize="13sp"
-                        android:textColor="#26A69A"
-                        android:text="@string/live_label" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="end">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="31dp">
-
-                    <TextView
-                        android:id="@+id/priceText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="23sp"
-                        android:textStyle="bold"
-                        android:textColor="#26A69A"
-                        android:gravity="end"
-                        tools:text="66,842.5" />
-
-                    <org.example.test.ui.SkeletonLoadingView
-                        android:id="@+id/priceSkeleton"
-                        android:layout_width="116dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="end|center_vertical"
-                        android:visibility="gone" />
-                </FrameLayout>
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="21dp"
-                    android:layout_marginTop="2dp"
-                    android:layout_gravity="end">
-
-                    <TextView
-                        android:id="@+id/changeText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="13sp"
-                        android:textColor="#26A69A"
-                        android:gravity="end"
-                        tools:text="+1.23%" />
-
-                    <org.example.test.ui.SkeletonLoadingView
-                        android:id="@+id/changeSkeleton"
-                        android:layout_width="64dp"
-                        android:layout_height="16dp"
-                        android:layout_gravity="end|center_vertical"
-                        android:visibility="gone" />
-                </FrameLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-        <FrameLayout
-            android:id="@+id/chartCanvas"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="14dp">
-
-            <org.example.test.chart.DepthHeatmapView
-                android:id="@+id/depthHeatmap"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                tools:background="#131722" />
-
-            <org.example.test.chart.CandlestickChartView
-                android:id="@+id/candleChart"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-            <org.example.test.ui.DrawingContextToolbar
-                android:id="@+id/drawingContextToolbar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:visibility="gone" />
-
-        </FrameLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#0D0D0D"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="16dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical">
 
             <LinearLayout
-                android:id="@+id/timeframeRow"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="horizontal" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <ImageView
-                android:id="@+id/drawingToolsButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="8dp"
-                android:padding="9dp"
-                android:src="@drawable/ic_drawing_pencil"
-                android:contentDescription="@string/drawing_tools_content_description" />
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp">
+
+                    <TextView
+                        android:id="@+id/symbolText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        android:textColor="#EAECEF"
+                        android:text="@string/symbol_label" />
+
+                    <org.example.test.ui.SkeletonLoadingView
+                        android:id="@+id/symbolSkeleton"
+                        android:layout_width="104dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center_vertical"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginStart="2dp"
+                    android:src="@drawable/ic_chevron_down"
+                    android:contentDescription="@null" />
+
+                <org.example.test.ui.RoundedIconButton
+                    android:id="@+id/paragraphButton"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_marginStart="10dp"
+                    android:src="@drawable/ic_paragraph_symbol"
+                    android:scaleType="centerCrop"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/paragraph_button_content_description"
+                    app:cornerRadiusPercent="0.15" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:textColor="#8A96A3"
+                    android:text="@string/contract_label" />
+
+                <View
+                    android:id="@+id/liveDot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_live_dot" />
+
+                <TextView
+                    android:id="@+id/liveText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:textSize="13sp"
+                    android:textColor="#22D3C5"
+                    android:text="@string/live_label" />
+            </LinearLayout>
         </LinearLayout>
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="31dp">
+
+                <TextView
+                    android:id="@+id/priceText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="23sp"
+                    android:textStyle="bold"
+                    android:textColor="#22D3C5"
+                    android:gravity="end"
+                    tools:text="66,842.5" />
+
+                <org.example.test.ui.SkeletonLoadingView
+                    android:id="@+id/priceSkeleton"
+                    android:layout_width="116dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="21dp"
+                android:layout_marginTop="2dp"
+                android:layout_gravity="end">
+
+                <TextView
+                    android:id="@+id/changeText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:textColor="#22D3C5"
+                    android:gravity="end"
+                    tools:text="+1.23%" />
+
+                <org.example.test.ui.SkeletonLoadingView
+                    android:id="@+id/changeSkeleton"
+                    android:layout_width="64dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
 
-</org.example.test.ui.SmartMoneyRevealLayout>
+    <FrameLayout
+        android:id="@+id/chartCanvas"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="14dp">
+
+        <org.example.test.chart.DepthHeatmapView
+            android:id="@+id/depthHeatmap"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:background="#131722" />
+
+        <org.example.test.chart.CandlestickChartView
+            android:id="@+id/candleChart"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <org.example.test.ui.DrawingContextToolbar
+            android:id="@+id/drawingContextToolbar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/chartOrderButtonsRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="72dp"
+            android:layout_marginBottom="24dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/chartLongButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:background="@drawable/bg_chart_long_button"
+                android:text="@string/chart_long_button_label"
+                android:textAllCaps="false"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/chart_long_button_content_description" />
+
+            <Button
+                android:id="@+id/chartShortButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginStart="8dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:background="@drawable/bg_chart_short_button"
+                android:text="@string/chart_short_button_label"
+                android:textAllCaps="false"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/chart_short_button_content_description" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#050608"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:id="@+id/timeframeRow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_timeframe_container"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:gravity="center_vertical" />
+
+        <ImageView
+            android:id="@+id/timeframeExpandButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:padding="9dp"
+            android:src="@drawable/ic_chevron_double"
+            android:contentDescription="@string/timeframe_expand_content_description" />
+
+        <ImageView
+            android:id="@+id/drawingToolsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:padding="9dp"
+            android:src="@drawable/ic_drawing_pencil"
+            android:contentDescription="@string/drawing_tools_content_description" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">test</string>
-    <string name="hello_world">Hello World!</string>
     <string name="stream_title">BTCUSDT Perpetual — Live Klines</string>
     <string name="status_idle">Idle</string>
 
@@ -13,22 +12,17 @@
     <string name="price_axis_label">Price (USDT)</string>
     <string name="legend_low">Low</string>
     <string name="legend_high">High</string>
+    <string name="timeframe_expand_content_description">More timeframes</string>
     <string name="drawing_tools_content_description">Drawing tools</string>
+    <string name="paragraph_button_content_description">Paragraph</string>
+    <string name="chart_long_button_label">Long</string>
+    <string name="chart_short_button_label">Short</string>
+    <string name="chart_long_button_content_description">Long</string>
+    <string name="chart_short_button_content_description">Short</string>
 
-    <string name="smart_money_dashboard_title">Smart Money Dashboard</string>
-    <string name="smart_money_dashboard_subtitle">Order-book liquidity zones and shelves detected in real time</string>
-    <string name="active_liquidity_zones_label">Active liquidity zones</string>
-    <string name="strongest_zone_label">Strongest zone</string>
-    <string name="aggression_meter_label">Aggression Meter</string>
-    <string name="aggressive_buyers_label">Aggressive buyers</string>
-    <string name="aggressive_sellers_label">Aggressive sellers</string>
-    <string name="smart_money_dashboard_footnote">Swipe down anywhere outside the chart to return to the full chart.</string>
-    <string name="no_data_placeholder">—</string>
-
-    <string name="liquidity_map_label">Liquidity map · Top 10 walls</string>
-    <string name="buy_walls_label">Buy walls (bids)</string>
-    <string name="sell_walls_label">Sell walls (asks)</string>
-    <string name="column_price">Price</string>
-    <string name="column_volume_usdt">Volume (USDT)</string>
-    <string name="column_time">Time</string>
+    <string name="splash_wordmark">SYNCORA</string>
+    <string name="splash_headline">Trade clearly.\nTogether</string>
+    <string name="splash_headline_line1">Trade clearly.</string>
+    <string name="splash_headline_line2">Together.</string>
+    <string name="splash_logo_content_description">Syncora logo</string>
 </resources>

@@ -16,12 +16,6 @@ data class DepthRestSnapshot(
     val asks: List<OrderBookLevel>,
 )
 
-/**
- * Fetches Bitget's REST aggregated-depth ("merge-depth") endpoint. Bitget's WS "books"
- * channel only streams the top ~150 levels per side, so this REST snapshot is used to
- * periodically seed deeper price levels that the WS feed will never push on its own -
- * distant liquidity walls, far cluster bands, and off-screen whale nodes rely on this data.
- */
 class BitgetDepthRestClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
 ) {

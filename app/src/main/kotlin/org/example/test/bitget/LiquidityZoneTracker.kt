@@ -3,6 +3,7 @@ package org.example.test.bitget
 import kotlin.math.max
 
 class LiquidityZoneTracker {
+    private val lock = Any()
     private val active = HashMap<ZoneKey, MutableZoneState>()
 
     private var runningMaxVolume = 0.0
@@ -11,7 +12,7 @@ class LiquidityZoneTracker {
     private data class ZoneKey(val side: BookSide, val price: Double)
     private class MutableZoneState(var volume: Double, val firstSeenMs: Long, var lastUpdateMs: Long)
 
-    fun update(snapshot: DepthSnapshot, nowMs: Long): List<LiquidityZone> {
+    fun update(snapshot: DepthSnapshot, nowMs: Long): List<LiquidityZone> = synchronized(lock) {
         var sampleMax = 0.0
         for (level in snapshot.bids) if (level.size > sampleMax) sampleMax = level.size
         for (level in snapshot.asks) if (level.size > sampleMax) sampleMax = level.size
@@ -26,7 +27,7 @@ class LiquidityZoneTracker {
 
         active.keys.retainAll(seenThisUpdate)
 
-        return result
+        result
     }
 
     private fun reconcileSide(
@@ -59,7 +60,7 @@ class LiquidityZoneTracker {
         }
     }
 
-    fun reset() {
+    fun reset() = synchronized(lock) {
         active.clear()
         runningMaxVolume = 0.0
     }

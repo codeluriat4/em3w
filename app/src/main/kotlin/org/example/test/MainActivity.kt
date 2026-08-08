@@ -5,10 +5,11 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
-import android.view.ViewTreeObserver
 import android.view.animation.DecelerateInterpolator
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -33,20 +34,18 @@ import org.example.test.bitget.Timeframe
 import org.example.test.chart.CandlestickChartView
 import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
-import org.example.test.ui.ChartStatsPanel
 import org.example.test.ui.DrawingContextToolbar
 import org.example.test.ui.DrawingToolsPanel
 import org.example.test.ui.LiveTradePanel
 import org.example.test.ui.NeumorphicInsetFrameDrawable
 import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
+import org.example.test.ui.QuickTradePanel
 import org.example.test.ui.RoundedIconButton
-import org.example.test.ui.ScrollAwareChartContainer
 import org.example.test.ui.SkeletonLoadingView
 import org.example.test.ui.TradingModeDialog
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
 
@@ -62,13 +61,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var candleChart: CandlestickChartView
     private lateinit var depthHeatmap: DepthHeatmapView
+    private lateinit var chartSectionContainer: LinearLayout
+    private lateinit var chartAndQuickTradeContainer: LinearLayout
+    private lateinit var chartCanvas: FrameLayout
+    private lateinit var quickTradePanel: QuickTradePanel
     private lateinit var timeframeRow: LinearLayout
-    private lateinit var chartAndStatsContainer: ScrollAwareChartContainer
-    private lateinit var chartCanvas: View
-    private lateinit var chartStatsPanel: ChartStatsPanel
-    private var chartAreaFullHeightPx = 0
-    private var isChartStatsExpanded = false
-    private var chartHeightAnimator: ValueAnimator? = null
     private lateinit var symbolText: TextView
     private lateinit var priceText: TextView
     private lateinit var changeText: TextView
@@ -100,6 +97,18 @@ class MainActivity : AppCompatActivity() {
     private var latestSocketState = SocketState.IDLE
     private var connectivityBannerDismissed = false
 
+    // Quick-trade drawer: dragged open by scrolling downward anywhere the chart canvas
+    // itself doesn't consume the touch (the canvas owns its own pan/zoom gestures, so
+    // this only ever fires for gestures made outside it - header, banner, toolbar, etc).
+    private var isQuickTradeExpanded = false
+    private var quickTradeGestureStartY = 0f
+    private var quickTradeGestureTracking = false
+    private var quickTradeWeightAnimator: ValueAnimator? = null
+    private val quickTradeExpandedChartWeight = 0.7f
+    private val quickTradeExpandedPanelWeight = 0.3f
+    private val quickTradeCollapsedChartWeight = 1f
+    private val quickTradeCollapsedPanelWeight = 0f
+
     private val bullColor = Color.parseColor("#22D3C5")
     private val bearColor = Color.parseColor("#FF5A6E")
     private val mutedColor = Color.parseColor("#8A96A3")
@@ -113,11 +122,11 @@ class MainActivity : AppCompatActivity() {
 
         candleChart = findViewById(R.id.candleChart)
         depthHeatmap = findViewById(R.id.depthHeatmap)
-        timeframeRow = findViewById(R.id.timeframeRow)
-        chartAndStatsContainer = findViewById(R.id.chartSectionContainer)
+        chartSectionContainer = findViewById(R.id.chartSectionContainer)
+        chartAndQuickTradeContainer = findViewById(R.id.chartAndQuickTradeContainer)
         chartCanvas = findViewById(R.id.chartCanvas)
-        chartStatsPanel = findViewById(R.id.chartStatsPanel)
-        setupChartStatsScrollGesture()
+        quickTradePanel = findViewById(R.id.quickTradePanel)
+        timeframeRow = findViewById(R.id.timeframeRow)
         symbolText = findViewById(R.id.symbolText)
         priceText = findViewById(R.id.priceText)
         changeText = findViewById(R.id.changeText)
@@ -164,6 +173,8 @@ class MainActivity : AppCompatActivity() {
         }
         setupPaperTrading()
         setupLiveTrading()
+        setupQuickTradePanel()
+        setupQuickTradeScrollGesture()
 
         drawingContextToolbar.bind(
             candleChart,
@@ -243,7 +254,6 @@ class MainActivity : AppCompatActivity() {
                         renderHeader(candles, visible)
 
                         depthHeatmap.syncToCandles(visible, pipeline.barDurationMillis.value)
-                        chartStatsPanel.render(candles)
                     }
                 }
 
@@ -324,6 +334,7 @@ class MainActivity : AppCompatActivity() {
                             lastError = renderState.error,
                             credentials = credentialsStore.load(),
                         )
+                        quickTradePanel.render(renderState.balance)
                     }
                 }
             }
@@ -392,6 +403,115 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Wires the quick-trade drawer's Long/Short buttons to paper trading -
+     * the same account the chart's own Long/Short quick-action buttons use.
+     * Order type is currently UI-only for LIMIT since neither trading
+     * repository supports resting orders yet; the user is told so rather
+     * than having the tap silently do nothing.
+     */
+    private fun setupQuickTradePanel() {
+        quickTradePanel.bind(
+            QuickTradePanel.Callbacks(
+                onOpenPosition = { side, sizeUsdt, leverage, orderType, limitPrice ->
+                    if (orderType == QuickTradePanel.OrderType.LIMIT) {
+                        Toast.makeText(this, "Limit orders aren't supported yet - use Market", Toast.LENGTH_LONG).show()
+                        return@Callbacks
+                    }
+                    lifecycleScope.launch {
+                        val result = paperTradingRepository.openPosition(side, sizeUsdt, leverage)
+                        if (result is PaperTradingResult.Failure) {
+                            Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "${side.name.lowercase().replaceFirstChar { it.uppercase() }} order placed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+            ),
+        )
+    }
+
+    /**
+     * Captures vertical drag gestures anywhere in [chartSectionContainer] that
+     * the chart canvas and other clickable children don't already consume
+     * (the canvas handles its own pan/zoom touch, so it never bubbles up
+     * here) and uses them to open/close the quick-trade drawer:
+     *  - a downward drag past the threshold collapses the chart to 70% of
+     *    its section and reveals the drawer underneath it.
+     *  - an upward drag past the threshold while the drawer is open closes
+     *    it again and restores the chart to full height.
+     */
+    private fun setupQuickTradeScrollGesture() {
+        val touchSlop = dp(56)
+        chartSectionContainer.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    quickTradeGestureStartY = event.rawY
+                    quickTradeGestureTracking = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (quickTradeGestureTracking) {
+                        val deltaY = event.rawY - quickTradeGestureStartY
+                        if (!isQuickTradeExpanded && deltaY > touchSlop) {
+                            setQuickTradeExpanded(true)
+                            quickTradeGestureTracking = false
+                        } else if (isQuickTradeExpanded && deltaY < -touchSlop) {
+                            setQuickTradeExpanded(false)
+                            quickTradeGestureTracking = false
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    quickTradeGestureTracking = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun setQuickTradeExpanded(expand: Boolean) {
+        if (isQuickTradeExpanded == expand) return
+        isQuickTradeExpanded = expand
+
+        val chartParams = chartCanvas.layoutParams as LinearLayout.LayoutParams
+        val panelParams = quickTradePanel.layoutParams as LinearLayout.LayoutParams
+        val startChartWeight = chartParams.weight
+        val startPanelWeight = panelParams.weight
+        val endChartWeight = if (expand) quickTradeExpandedChartWeight else quickTradeCollapsedChartWeight
+        val endPanelWeight = if (expand) quickTradeExpandedPanelWeight else quickTradeCollapsedPanelWeight
+
+        if (expand) quickTradePanel.visibility = View.VISIBLE
+
+        quickTradeWeightAnimator?.cancel()
+        quickTradeWeightAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 260L
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                chartParams.weight = startChartWeight + (endChartWeight - startChartWeight) * progress
+                panelParams.weight = startPanelWeight + (endPanelWeight - startPanelWeight) * progress
+                chartCanvas.layoutParams = chartParams
+                quickTradePanel.layoutParams = panelParams
+                chartAndQuickTradeContainer.requestLayout()
+            }
+            if (!expand) {
+                doOnAnimationEnd { quickTradePanel.visibility = View.GONE }
+            }
+            start()
+        }
+    }
+
+    private fun ValueAnimator.doOnAnimationEnd(action: () -> Unit) {
+        addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                action()
+            }
+        })
+    }
+
     private fun buildTimeframeButtons() {
         for (timeframe in Timeframe.entries) {
             val isSelected = timeframe == pipeline.currentTimeframe.value
@@ -445,90 +565,8 @@ class MainActivity : AppCompatActivity() {
         chartOrderButtonsRow.visibility = if (isOrderButtonsVisible) View.VISIBLE else View.GONE
     }
 
-    /**
-     * Wires up the drag-to-reveal gesture for [chartStatsPanel]. The gesture is only
-     * recognized when it starts outside [chartCanvas] - the chart owns its own
-     * pan/pinch/crosshair touches and calls requestDisallowInterceptTouchEvent while
-     * handling them, so this never fights it. A downward drag elsewhere in
-     * [chartAndStatsContainer] (header, bottom bar, empty space, or the panel itself)
-     * collapses the chart up to [CHART_COLLAPSED_HEIGHT_FRACTION] of the screen height
-     * to make room for the panel; a matching upward drag restores the chart.
-     */
-    private fun setupChartStatsScrollGesture() {
-        chartAndStatsContainer.excludedView = chartCanvas
-        chartAndStatsContainer.onScrollDownOutsideCanvas = { setChartStatsExpanded(true) }
-        chartAndStatsContainer.onScrollUpOutsideCanvas = { setChartStatsExpanded(false) }
-
-        // Capture the chart canvas's natural (fully-expanded) height once it's first laid
-        // out. While not collapsed, chartCanvas.height *is* the full flexible space (the
-        // stats panel sits at height 0), so this stays accurate across any changes in the
-        // fixed-height siblings above/below (e.g. the connectivity banner appearing).
-        chartCanvas.viewTreeObserver.addOnGlobalLayoutListener(
-            object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    val height = chartCanvas.height
-                    if (height > 0 && !isChartStatsExpanded) {
-                        chartAreaFullHeightPx = height
-                    }
-                }
-            },
-        )
-    }
-
-    private fun setChartStatsExpanded(expanded: Boolean) {
-        if (expanded == isChartStatsExpanded) return
-        if (chartAreaFullHeightPx <= 0) return
-        isChartStatsExpanded = expanded
-
-        val screenHeightPx = resources.displayMetrics.heightPixels
-        val collapsedChartHeight = min(
-            chartAreaFullHeightPx,
-            (screenHeightPx * CHART_COLLAPSED_HEIGHT_FRACTION).toInt(),
-        )
-
-        val targetChartHeight = if (expanded) collapsedChartHeight else chartAreaFullHeightPx
-        val targetPanelHeight = chartAreaFullHeightPx - targetChartHeight
-
-        animateChartAreaHeights(targetChartHeight, targetPanelHeight)
-    }
-
-    private fun animateChartAreaHeights(targetChartHeight: Int, targetPanelHeight: Int) {
-        val startChartHeight = chartCanvas.height.takeIf { it > 0 } ?: chartAreaFullHeightPx
-        val startPanelHeight = chartStatsPanel.height
-
-        chartHeightAnimator?.cancel()
-        chartHeightAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = CHART_COLLAPSE_ANIMATION_MS
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { animator ->
-                val fraction = animator.animatedValue as Float
-                setChartAreaHeights(
-                    chartHeight = lerp(startChartHeight, targetChartHeight, fraction),
-                    panelHeight = lerp(startPanelHeight, targetPanelHeight, fraction),
-                )
-            }
-            start()
-        }
-    }
-
-    private fun setChartAreaHeights(chartHeight: Int, panelHeight: Int) {
-        chartCanvas.layoutParams = chartCanvas.layoutParams.apply {
-            height = chartHeight
-            if (this is LinearLayout.LayoutParams) weight = 0f
-        }
-        chartStatsPanel.layoutParams = chartStatsPanel.layoutParams.apply {
-            height = panelHeight
-            if (this is LinearLayout.LayoutParams) weight = 0f
-        }
-    }
-
-    private fun lerp(from: Int, to: Int, fraction: Float): Int =
-        (from + (to - from) * fraction).toInt()
-
     private companion object {
         const val CONNECTIVITY_TIMEOUT_MS = 15_000L
-        const val CHART_COLLAPSED_HEIGHT_FRACTION = 0.7f
-        const val CHART_COLLAPSE_ANIMATION_MS = 260L
     }
 
     /**

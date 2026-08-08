@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<org.example.test.ui.SmartMoneyRevealLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/chartSectionContainer"
+    android:id="@+id/smartMoneyRevealLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="#050608">
 
     <LinearLayout
-        android:id="@+id/headerRow"
+        android:id="@+id/chartSectionContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#050608">
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -288,23 +293,9 @@
 
         </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/timeframeOverlayAnchor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
     </FrameLayout>
 
     <LinearLayout
-        android:id="@+id/timeframeControlsBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#050608"
@@ -347,4 +338,18 @@
             android:contentDescription="@string/drawing_tools_content_description" />
     </LinearLayout>
 
-</LinearLayout>
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/smartMoneyDashboardScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#050608"
+        android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <include layout="@layout/smart_money_dashboard_content" />
+
+    </androidx.core.widget.NestedScrollView>
+
+</org.example.test.ui.SmartMoneyRevealLayout>

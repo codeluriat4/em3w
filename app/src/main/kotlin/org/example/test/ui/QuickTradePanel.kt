@@ -20,8 +20,8 @@ import java.util.Locale
 
 /**
  * Compact "quick trade" drawer that lives directly under the chart. Unlike
- * [LiveTradePanel]/[PaperTradePanel] (full account screens shown in a
- * dialog), this view only surfaces what's needed to fire off an order
+ * [PaperTradePanel] (the full account screen shown in a dialog), this view
+ * only surfaces what's needed to fire off an order
  * without leaving the chart: balance, unrealized PnL, leverage, position
  * size, order type, and the Long/Short buttons.
  *

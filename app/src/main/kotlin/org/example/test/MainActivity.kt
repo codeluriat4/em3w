@@ -36,7 +36,6 @@ import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
 import org.example.test.ui.DrawingContextToolbar
 import org.example.test.ui.DrawingToolsPanel
-import org.example.test.ui.LiveTradePanel
 import org.example.test.ui.NeumorphicInsetFrameDrawable
 import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
@@ -57,8 +56,6 @@ class MainActivity : AppCompatActivity() {
     private val depthPipeline by lazy { app.depthPipeline }
     private val credentialsStore by lazy { app.credentialsStore }
     private val paperTradingRepository by lazy { app.paperTradingRepository }
-    private val liveCredentialsStore by lazy { app.liveCredentialsStore }
-    private val liveTradingRepository by lazy { app.liveTradingRepository }
 
     private lateinit var candleChart: CandlestickChartView
     private lateinit var depthHeatmap: DepthHeatmapView
@@ -79,7 +76,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var timeframeExpandButton: ImageView
     private lateinit var drawingContextToolbar: DrawingContextToolbar
     private val paperTradePanel by lazy { PaperTradePanel(this) }
-    private val liveTradePanel by lazy { LiveTradePanel(this) }
     private lateinit var paragraphButton: RoundedIconButton
     private lateinit var chartLongButton: Button
     private lateinit var chartShortButton: Button
@@ -145,7 +141,7 @@ class MainActivity : AppCompatActivity() {
         drawingContextToolbar = findViewById(R.id.drawingContextToolbar)
         paragraphButton = findViewById(R.id.paragraphButton)
         paragraphButton.setOnClickListener {
-            TradingModeDialog(this, paperTradePanel, liveTradePanel).show()
+            TradingModeDialog(this, paperTradePanel).show()
         }
         chartLongButton = findViewById(R.id.chartLongButton)
         chartShortButton = findViewById(R.id.chartShortButton)
@@ -166,18 +162,17 @@ class MainActivity : AppCompatActivity() {
         }
         chartLongButton.setOnClickListener {
             paperTradePanel.setSide(PositionSide.LONG)
-            val dialog = TradingModeDialog(this, paperTradePanel, liveTradePanel)
+            val dialog = TradingModeDialog(this, paperTradePanel)
             dialog.show()
             dialog.showPaperTradingScreen()
         }
         chartShortButton.setOnClickListener {
             paperTradePanel.setSide(PositionSide.SHORT)
-            val dialog = TradingModeDialog(this, paperTradePanel, liveTradePanel)
+            val dialog = TradingModeDialog(this, paperTradePanel)
             dialog.show()
             dialog.showPaperTradingScreen()
         }
         setupPaperTrading()
-        setupLiveTrading()
         setupQuickTradePanel()
         setupQuickTradeScrollGesture()
 
@@ -352,61 +347,6 @@ class MainActivity : AppCompatActivity() {
         val positions: List<PaperPosition>,
         val error: String?,
     )
-
-    private fun setupLiveTrading() {
-        liveTradePanel.bind(
-            LiveTradePanel.Callbacks(
-                onCredentialsSubmitted = { credentials ->
-                    liveCredentialsStore.save(credentials)
-                    liveTradingRepository.onCredentialsChanged()
-                    Toast.makeText(this, "Live API Key saved", Toast.LENGTH_SHORT).show()
-                },
-                onCredentialsCleared = {
-                    liveCredentialsStore.clear()
-                    liveTradingRepository.onCredentialsChanged()
-                },
-                onOpenPosition = { side, size, leverage ->
-                    lifecycleScope.launch {
-                        val result = liveTradingRepository.openPosition(side, size, leverage)
-                        if (result is PaperTradingResult.Failure) {
-                            Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
-                        }
-                    }
-                },
-                onClosePosition = { position ->
-                    lifecycleScope.launch {
-                        val result = liveTradingRepository.closePosition(position)
-                        if (result is PaperTradingResult.Failure) {
-                            Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
-                        }
-                    }
-                },
-            ),
-        )
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    combine(
-                        liveTradingRepository.connectionState,
-                        liveTradingRepository.balance,
-                        liveTradingRepository.positions,
-                        liveTradingRepository.lastError,
-                    ) { state, balance, positions, error ->
-                        PaperTradeRenderState(state, balance, positions, error)
-                    }.collect { renderState ->
-                        liveTradePanel.render(
-                            connectionState = renderState.state,
-                            balance = renderState.balance,
-                            positions = renderState.positions,
-                            lastError = renderState.error,
-                            credentials = liveCredentialsStore.load(),
-                        )
-                    }
-                }
-            }
-        }
-    }
 
     /**
      * Wires the quick-trade drawer's Long/Short buttons to paper trading -
@@ -675,13 +615,11 @@ class MainActivity : AppCompatActivity() {
         // backgrounded and stopped in between.
         app.ensureMarketDataStarted()
         paperTradingRepository.start()
-        liveTradingRepository.start()
     }
 
     override fun onStop() {
         super.onStop()
         app.stopMarketData()
         paperTradingRepository.stop()
-        liveTradingRepository.stop()
     }
 }

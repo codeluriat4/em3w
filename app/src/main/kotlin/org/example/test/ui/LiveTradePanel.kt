@@ -13,7 +13,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -37,10 +36,12 @@ import java.util.Locale
  *
  * This is a structural twin of [PaperTradePanel] with the real-money
  * safeguards a paper panel doesn't need:
+ *  - The Live API Key & Connection section (see [buildCredentialsSection])
+ *    is the panel's upfront content - connecting an account is the first
+ *    thing this screen asks for, ahead of the trading UI below it, which
+ *    stays disabled until [PaperTradingConnectionState.LIVE].
  *  - Every order (open or close) goes through a confirmation dialog that
  *    states plainly it will use real funds, before anything is sent out.
- *  - The credentials dialog carries an explicit warning and requires the
- *    user to acknowledge it (checkbox) before "Save" is enabled.
  *  - Distinct amber "LIVE" branding throughout so it can't be mistaken for
  *    the paper trading screen at a glance.
  *
@@ -75,10 +76,12 @@ class LiveTradePanel @JvmOverloads constructor(
     private var callbacks: Callbacks? = null
     private var savedCredentials: BitgetCredentials? = null
     private var lastConnectionState: PaperTradingConnectionState = PaperTradingConnectionState.NOT_CONFIGURED
+    private var fieldsPrefilled = false
+    private var isTestnetSelected = false
+    private var credentialScope: CoroutineScope? = null
 
     private lateinit var statusDot: View
     private lateinit var statusText: TextView
-    private lateinit var settingsButton: TextView
     private lateinit var balanceText: TextView
     private lateinit var balancePnlText: TextView
     private lateinit var progressBar: ProgressBar
@@ -88,6 +91,20 @@ class LiveTradePanel @JvmOverloads constructor(
     private lateinit var leverageInput: EditText
     private lateinit var submitOrderButton: Button
     private var currentSide: PositionSide = PositionSide.LONG
+
+    // ---- Live API Key section (the panel's upfront content) ----
+    private lateinit var apiKeyField: EditText
+    private lateinit var secretField: EditText
+    private lateinit var passphraseField: EditText
+    private lateinit var mainnetOption: TextView
+    private lateinit var testnetOption: TextView
+    private lateinit var credStatusDot: View
+    private lateinit var credStatusLabel: TextView
+    private lateinit var credStatusDetail: TextView
+    private lateinit var testProgress: ProgressBar
+    private lateinit var testConnectionButton: TextView
+    private lateinit var saveConnectButton: Button
+    private lateinit var removeKeyText: TextView
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
@@ -100,6 +117,11 @@ class LiveTradePanel @JvmOverloads constructor(
         }
         setPadding(dp(14), dp(12), dp(14), dp(14))
 
+        // The Live API Key & Connection section is the panel's upfront
+        // content - connecting an account is the first thing this screen
+        // asks for, ahead of the (disabled-until-connected) trading UI.
+        addView(buildCredentialsSection())
+        addView(spacer(14))
         addView(buildHeaderRow())
         addView(buildWarningBanner())
         addView(buildBalanceRow())
@@ -120,6 +142,17 @@ class LiveTradePanel @JvmOverloads constructor(
 
         positionsContainer = LinearLayout(context).apply { orientation = VERTICAL }
         addView(positionsContainer)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        credentialScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    }
+
+    override fun onDetachedFromWindow() {
+        credentialScope?.cancel()
+        credentialScope = null
+        super.onDetachedFromWindow()
     }
 
     private fun Int.withAlpha(alpha: Int): Int =
@@ -155,6 +188,20 @@ class LiveTradePanel @JvmOverloads constructor(
     ) {
         savedCredentials = credentials
         lastConnectionState = connectionState
+
+        if (!fieldsPrefilled && credentials != null) {
+            apiKeyField.setText(credentials.apiKey)
+            secretField.setText(credentials.secretKey)
+            passphraseField.setText(credentials.passphrase)
+            isTestnetSelected = credentials.isTestnet
+            refreshEnvironmentStyle()
+            fieldsPrefilled = true
+        }
+        removeKeyText.visibility = if (credentials != null) View.VISIBLE else View.GONE
+        applyCredentialStatus(
+            connected = connectionState == PaperTradingConnectionState.LIVE,
+            detail = if (connectionState == PaperTradingConnectionState.ERROR) lastError else null,
+        )
 
         val (dotColor, label) = when (connectionState) {
             PaperTradingConnectionState.NOT_CONFIGURED -> mutedColor to "Not connected"
@@ -223,17 +270,7 @@ class LiveTradePanel @JvmOverloads constructor(
                 marginStart = dp(8)
             }
         })
-        settingsButton = TextView(context).apply {
-            text = "⚙ Live API Key"
-            textSize = 12f
-            setTextColor(mutedColor)
-            isClickable = true
-            isFocusable = true
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            setOnClickListener { showCredentialsDialog() }
-        }
         row.addView(titleColumn)
-        row.addView(settingsButton)
         return row
     }
 
@@ -452,33 +489,66 @@ class LiveTradePanel @JvmOverloads constructor(
     }
 
     /**
-     * The live trading credentials modal. Deliberately scoped to exactly two
-     * things - the API Key/Secret/Passphrase and the API Connection it will
-     * be used against - since that's the only decision this screen needs to
-     * make; order entry, positions, etc. all live on the main panel.
+     * The Live API Key & Connection section. This is the panel's upfront
+     * content (see init{}) - connecting an account is the first thing this
+     * screen asks for, scoped to exactly two things: the API
+     * Key/Secret/Passphrase, and the API Connection (exchange + Mainnet vs
+     * Testnet) they'll be used against.
      */
-    private fun showCredentialsDialog() {
-        // Own scope for the (unsaved-credentials) "Test Connection" network
-        // call, cancelled the moment the dialog goes away so a slow response
-        // can't land after the views it would update are gone.
-        val dialogScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
-        var isTestnet = savedCredentials?.isTestnet ?: false
-
+    private fun buildCredentialsSection(): View {
         val container = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(dp(20), dp(14), dp(20), dp(4))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(fieldBackground)
+                setStroke(dp(1), liveAccentColor.withAlpha(0x40))
+            }
+            setPadding(dp(14), dp(12), dp(14), dp(14))
         }
 
+        val titleRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(context).apply {
+            text = "Live API Key"
+            textSize = 14.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(labelColor)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        titleRow.addView(TextView(context).apply {
+            text = "REAL FUNDS"
+            textSize = 9.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(liveAccentColor)
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(4).toFloat()
+                setStroke(dp(1), liveAccentColor)
+            }
+        })
+        container.addView(titleRow)
+        container.addView(spacer(4))
+        container.addView(TextView(context).apply {
+            text = "Connect your Bitget account to enable live trading."
+            textSize = 11.5f
+            setTextColor(mutedColor)
+        })
+
+        container.addView(spacer(12))
         container.addView(sectionHeader("API Credentials"))
-        val (apiKeyField, apiKeyRow) = secureField("API Key", savedCredentials?.apiKey.orEmpty(), maskByDefault = false)
-        val (secretField, secretRow) = secureField("API Secret", savedCredentials?.secretKey.orEmpty(), maskByDefault = true)
-        val (passphraseField, passphraseRow) = secureField("Passphrase (optional)", savedCredentials?.passphrase.orEmpty(), maskByDefault = true)
+        val (apiKeyF, apiKeyRow) = secureField("API Key", "", maskByDefault = false)
+        val (secretF, secretRow) = secureField("API Secret", "", maskByDefault = true)
+        val (passphraseF, passphraseRow) = secureField("Passphrase (optional)", "", maskByDefault = true)
+        apiKeyField = apiKeyF
+        secretField = secretF
+        passphraseField = passphraseF
         container.addView(apiKeyRow)
         container.addView(secretRow)
         container.addView(passphraseRow)
 
-        container.addView(spacer(14))
+        container.addView(spacer(12))
         container.addView(sectionHeader("API Connection"))
 
         // Exchange selector - a single supported exchange today, presented
@@ -491,16 +561,8 @@ class LiveTradePanel @JvmOverloads constructor(
         // Environment segmented control - Mainnet vs Testnet. Testnet keys
         // are Bitget "Demo API Keys" and are routed with the sandbox header
         // (see BitgetLiveTradingRestClient) rather than the real one.
-        lateinit var mainnetOption: TextView
-        lateinit var testnetOption: TextView
-        fun refreshEnvironmentStyle() {
-            mainnetOption.background = segmentedOptionBackground(selected = !isTestnet)
-            mainnetOption.setTextColor(if (!isTestnet) Color.WHITE else mutedColor)
-            testnetOption.background = segmentedOptionBackground(selected = isTestnet)
-            testnetOption.setTextColor(if (isTestnet) Color.WHITE else mutedColor)
-        }
-        mainnetOption = segmentedOption("Mainnet") { isTestnet = false; refreshEnvironmentStyle() }
-        testnetOption = segmentedOption("Testnet") { isTestnet = true; refreshEnvironmentStyle() }
+        mainnetOption = segmentedOption("Mainnet") { isTestnetSelected = false; refreshEnvironmentStyle() }
+        testnetOption = segmentedOption("Testnet") { isTestnetSelected = true; refreshEnvironmentStyle() }
         val environmentRow = LinearLayout(context).apply {
             orientation = HORIZONTAL
             addView(mainnetOption)
@@ -510,51 +572,40 @@ class LiveTradePanel @JvmOverloads constructor(
         refreshEnvironmentStyle()
         container.addView(labeledRow("Environment", environmentRow))
 
-        container.addView(spacer(14))
+        container.addView(spacer(12))
         container.addView(buildDivider())
         container.addView(spacer(10))
 
         // Connection status indicator.
-        val statusDotView = View(context).apply {
+        credStatusDot = View(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginEnd = dp(7) }
         }
-        val statusLabel = TextView(context).apply {
+        credStatusLabel = TextView(context).apply {
             textSize = 12.5f
             typeface = Typeface.DEFAULT_BOLD
         }
-        val statusDetail = TextView(context).apply {
+        credStatusDetail = TextView(context).apply {
             textSize = 11f
             setTextColor(mutedColor)
             setPadding(0, dp(2), 0, 0)
         }
-        val testProgress = ProgressBar(context).apply {
+        testProgress = ProgressBar(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginStart = dp(8) }
             visibility = View.GONE
-        }
-        fun setStatus(connected: Boolean, detail: String? = null) {
-            statusDotView.background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(if (connected) bullColor else mutedColor)
-            }
-            statusLabel.text = if (connected) "Connected" else "Not Connected"
-            statusLabel.setTextColor(if (connected) bullColor else mutedColor)
-            statusDetail.text = detail.orEmpty()
-            statusDetail.visibility = if (detail.isNullOrBlank()) View.GONE else View.VISIBLE
         }
         val statusRow = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(statusDotView)
-            addView(statusLabel)
+            addView(credStatusDot)
+            addView(credStatusLabel)
             addView(testProgress)
         }
-        setStatus(connected = lastConnectionState == PaperTradingConnectionState.LIVE)
         container.addView(statusRow)
-        container.addView(statusDetail)
+        container.addView(credStatusDetail)
+        applyCredentialStatus(connected = false)
 
         container.addView(spacer(10))
-
-        val testConnectionButton = TextView(context).apply {
+        testConnectionButton = TextView(context).apply {
             text = "Test Connection"
             textSize = 12.5f
             typeface = Typeface.DEFAULT_BOLD
@@ -568,6 +619,7 @@ class LiveTradePanel @JvmOverloads constructor(
                 setStroke(dp(1), borderColor)
             }
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setOnClickListener { testConnection() }
         }
         container.addView(testConnectionButton)
 
@@ -581,89 +633,92 @@ class LiveTradePanel @JvmOverloads constructor(
         })
         container.addView(spacer(14))
 
-        val saveConnectButton = Button(context).apply {
+        saveConnectButton = Button(context).apply {
             text = "Save & Connect"
             isAllCaps = false
             setTextColor(Color.WHITE)
             background = pillBackground(liveAccentColor)
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setOnClickListener { saveAndConnect() }
         }
         container.addView(saveConnectButton)
 
-        if (savedCredentials != null) {
-            container.addView(spacer(6))
-            container.addView(TextView(context).apply {
-                text = "Remove saved key"
-                textSize = 12f
-                gravity = Gravity.CENTER
-                setTextColor(bearColor)
-                isClickable = true
-                isFocusable = true
-                setPadding(0, dp(8), 0, dp(4))
-            }.also { removeText ->
-                // Wired up below, once `dialog` exists.
-                removeText.tag = "remove"
-            })
+        removeKeyText = TextView(context).apply {
+            text = "Remove saved key"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(bearColor)
+            isClickable = true
+            isFocusable = true
+            setPadding(0, dp(8), 0, dp(4))
+            visibility = View.GONE
+            setOnClickListener { callbacks?.onCredentialsCleared?.invoke() }
         }
-        container.addView(spacer(4))
+        container.addView(spacer(6))
+        container.addView(removeKeyText)
 
-        val scrollableContainer = ScrollView(context).apply { addView(container) }
-
-        val dialog = AlertDialog.Builder(context)
-            .setTitle("API Key & Connection")
-            .setView(scrollableContainer)
-            .setNegativeButton("Cancel", null)
-            .create()
-
-        fun currentlyEnteredCredentials(): BitgetCredentials = BitgetCredentials(
-            apiKey = apiKeyField.text?.toString()?.trim().orEmpty(),
-            secretKey = secretField.text?.toString()?.trim().orEmpty(),
-            passphrase = passphraseField.text?.toString()?.trim().orEmpty(),
-            isTestnet = isTestnet,
-        )
-
-        testConnectionButton.setOnClickListener {
-            val credentials = currentlyEnteredCredentials()
-            if (!credentials.isComplete) {
-                apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
-                secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
-                return@setOnClickListener
-            }
-            testProgress.visibility = View.VISIBLE
-            testConnectionButton.isEnabled = false
-            dialogScope.launch {
-                val client = BitgetLiveTradingRestClient(credentialsProvider = { credentials })
-                try {
-                    client.fetchAccountBalance()
-                    setStatus(connected = true, detail = "Key is valid and reachable.")
-                } catch (e: Exception) {
-                    setStatus(connected = false, detail = e.message ?: "Couldn't reach the exchange")
-                } finally {
-                    testProgress.visibility = View.GONE
-                    testConnectionButton.isEnabled = true
-                }
-            }
-        }
-
-        saveConnectButton.setOnClickListener {
-            val credentials = currentlyEnteredCredentials()
-            if (!credentials.isComplete) {
-                apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
-                secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
-                return@setOnClickListener
-            }
-            callbacks?.onCredentialsSubmitted?.invoke(credentials)
-            dialog.dismiss()
-        }
-
-        (container.findViewWithTag<TextView>("remove"))?.setOnClickListener {
-            callbacks?.onCredentialsCleared?.invoke()
-            dialog.dismiss()
-        }
-
-        dialog.setOnDismissListener { dialogScope.cancel() }
-        dialog.show()
+        return container
     }
+
+    private fun refreshEnvironmentStyle() {
+        mainnetOption.background = segmentedOptionBackground(selected = !isTestnetSelected)
+        mainnetOption.setTextColor(if (!isTestnetSelected) Color.WHITE else mutedColor)
+        testnetOption.background = segmentedOptionBackground(selected = isTestnetSelected)
+        testnetOption.setTextColor(if (isTestnetSelected) Color.WHITE else mutedColor)
+    }
+
+    private fun applyCredentialStatus(connected: Boolean, detail: String? = null) {
+        credStatusDot.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(if (connected) bullColor else mutedColor)
+        }
+        credStatusLabel.text = if (connected) "Connected" else "Not Connected"
+        credStatusLabel.setTextColor(if (connected) bullColor else mutedColor)
+        credStatusDetail.text = detail.orEmpty()
+        credStatusDetail.visibility = if (detail.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    private fun currentlyEnteredCredentials(): BitgetCredentials = BitgetCredentials(
+        apiKey = apiKeyField.text?.toString()?.trim().orEmpty(),
+        secretKey = secretField.text?.toString()?.trim().orEmpty(),
+        passphrase = passphraseField.text?.toString()?.trim().orEmpty(),
+        isTestnet = isTestnetSelected,
+    )
+
+    private fun testConnection() {
+        val credentials = currentlyEnteredCredentials()
+        if (!credentials.isComplete) {
+            apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
+            secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
+            return
+        }
+        val scope = credentialScope ?: return
+        testProgress.visibility = View.VISIBLE
+        testConnectionButton.isEnabled = false
+        scope.launch {
+            val client = BitgetLiveTradingRestClient(credentialsProvider = { credentials })
+            try {
+                client.fetchAccountBalance()
+                applyCredentialStatus(connected = true, detail = "Key is valid and reachable.")
+            } catch (e: Exception) {
+                applyCredentialStatus(connected = false, detail = e.message ?: "Couldn't reach the exchange")
+            } finally {
+                testProgress.visibility = View.GONE
+                testConnectionButton.isEnabled = true
+            }
+        }
+    }
+
+    private fun saveAndConnect() {
+        val credentials = currentlyEnteredCredentials()
+        if (!credentials.isComplete) {
+            apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
+            secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
+            return
+        }
+        callbacks?.onCredentialsSubmitted?.invoke(credentials)
+    }
+
 
     private fun sectionHeader(text: String): TextView = TextView(context).apply {
         this.text = text.uppercase(Locale.US)

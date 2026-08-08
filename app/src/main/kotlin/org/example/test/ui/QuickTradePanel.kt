@@ -32,12 +32,12 @@ import java.util.Locale
  * leverage/size/order-type controls, limit price field, Long/Short buttons -
  * can end up taller than the space it's given, especially with the limit
  * price field visible on smaller screens. Everything below the grab handle
- * therefore lives inside [scrollableContent], a [NestedScrollView] that lets
- * the drawer be scrolled up and down to reach controls that don't fit.
- * [scrollableContent] is exposed so [MainActivity] can exclude it from the
- * outer drag-to-reveal gesture, letting a vertical drag that starts over the
- * drawer's body scroll it instead of resizing it - only the grab handle
- * remains reserved for resize drags.
+ * therefore lives inside [scrollableContent], a [NestedScrollView]. Most of
+ * the time its content fits and dragging anywhere on the drawer still
+ * resizes it exactly as before; only once the content actually overflows
+ * does [MainActivity] hand drags starting on the body to [scrollableContent]
+ * instead, so it scrolls in place - the grab handle keeps working as the
+ * resize target either way.
  */
 class QuickTradePanel @JvmOverloads constructor(
     context: Context,
@@ -82,9 +82,9 @@ class QuickTradePanel @JvmOverloads constructor(
 
     /**
      * The scrollable body of the drawer (everything except the grab handle).
-     * [MainActivity] excludes this from the outer drag-to-reveal gesture so
-     * a drag that starts inside the drawer scrolls its content instead of
-     * being stolen for the resize gesture.
+     * [MainActivity] hands this to [ScrollRevealContainer.excludedScrollableView],
+     * which only excludes it from the outer drag-to-reveal gesture while it
+     * actually has overflow content to scroll - see the class doc.
      */
     val scrollableContent: View
         get() = scrollView
@@ -153,15 +153,19 @@ class QuickTradePanel @JvmOverloads constructor(
     }
 
     private fun buildGrabHandle(): View =
-        View(context).apply {
-            background = GradientDrawable().apply {
-                cornerRadius = dp(2).toFloat()
-                setColor(borderColor)
-            }
-            layoutParams = LayoutParams(dp(36), dp(4)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = dp(12)
-            }
+        FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28))
+            addView(
+                View(context).apply {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(2).toFloat()
+                        setColor(borderColor)
+                    }
+                    layoutParams = FrameLayout.LayoutParams(dp(36), dp(4)).apply {
+                        gravity = Gravity.CENTER
+                    }
+                },
+            )
         }
 
     private fun buildStatRow(): View {

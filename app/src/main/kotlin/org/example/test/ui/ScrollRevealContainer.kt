@@ -24,11 +24,13 @@ import kotlin.math.abs
  * outside the chart view entirely (header, banner, timeframe row, toolbar
  * icons) is eligible by default.
  *
- * [excludedScrollableView], if set, carves out a second, unconditional zone
- * (no insets) for a view that does its own vertical scrolling - e.g. the
- * quick-trade drawer's body once it has more controls than fit in its
- * allotted height. A drag starting inside it is left alone so the view's own
- * scrolling handles it instead of it being stolen for the reveal gesture.
+ * [excludedScrollableView], if set, carves out a second zone for a view
+ * that does its own vertical scrolling - e.g. the quick-trade drawer's body
+ * once it has more controls than fit in its allotted height. That zone is
+ * only actually excluded when the view has something to scroll (checked via
+ * [View.canScrollVertically] in both directions); when its content already
+ * fits, dragging over it still drives the reveal gesture like anywhere else,
+ * so nothing regresses on screens where the drawer never needs to scroll.
  *
  * Uses the standard "intercept once a real drag is detected" pattern (the
  * same one ScrollView/RecyclerView use) so taps on buttons that happen to
@@ -53,7 +55,7 @@ class ScrollRevealContainer @JvmOverloads constructor(
     /** Height of the time-axis strip (screen bottom edge of [excludedInteractiveView]) to carve back out of the exclusion. */
     var excludedBottomInsetPx: Float = 0f
 
-    /** A second, self-scrolling view (e.g. the quick-trade drawer's body) that's off-limits to this gesture entirely, with no inset carve-outs. */
+    /** A second, self-scrolling view (e.g. the quick-trade drawer's body). Only excluded from this gesture while it actually has content to scroll - see class doc. */
     var excludedScrollableView: View? = null
 
     /** [deltaY] is event.y - downY in this container's local coordinates: positive means the finger moved down. */
@@ -116,14 +118,24 @@ class ScrollRevealContainer @JvmOverloads constructor(
             return true
         }
         val scrollable = excludedScrollableView
-        if (scrollable != null && isInsideRegion(x, y, scrollable)) {
+        if (scrollable != null && isInsideRegion(x, y, scrollable, requireScrollable = true)) {
             return true
         }
         return false
     }
 
-    private fun isInsideRegion(x: Float, y: Float, target: View, rightInsetPx: Float = 0f, bottomInsetPx: Float = 0f): Boolean {
+    private fun isInsideRegion(
+        x: Float,
+        y: Float,
+        target: View,
+        rightInsetPx: Float = 0f,
+        bottomInsetPx: Float = 0f,
+        requireScrollable: Boolean = false,
+    ): Boolean {
         if (target.visibility != View.VISIBLE) return false
+        // If the target has nothing to scroll in either direction, its bounds
+        // aren't excluded - let the reveal gesture handle drags there as usual.
+        if (requireScrollable && !target.canScrollVertically(1) && !target.canScrollVertically(-1)) return false
         val containerLoc = IntArray(2)
         val targetLoc = IntArray(2)
         getLocationOnScreen(containerLoc)

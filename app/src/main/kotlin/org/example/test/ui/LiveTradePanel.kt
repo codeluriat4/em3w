@@ -2,12 +2,14 @@ package org.example.test.ui
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -21,16 +23,24 @@ import org.example.test.bitget.PositionSide
 import java.util.Locale
 
 /**
- * Self-contained "paper trading" panel: demo account balance, open
+ * Self-contained "live trading" panel: real account balance, real open
  * positions with live PnL, and controls to open/close positions with market
- * orders against Bitget's Demo Trading API.
+ * orders against Bitget's real trading API.
  *
- * This view holds no trading state itself - it just renders whatever
- * [PaperTradingRepository] gives it and forwards user actions back out
- * through [Callbacks]. The actual balances/positions live on Bitget's
- * servers under the user's Demo API Key.
+ * This is a structural twin of [PaperTradePanel] with the real-money
+ * safeguards a paper panel doesn't need:
+ *  - Every order (open or close) goes through a confirmation dialog that
+ *    states plainly it will use real funds, before anything is sent out.
+ *  - The credentials dialog carries an explicit warning and requires the
+ *    user to acknowledge it (checkbox) before "Save" is enabled.
+ *  - Distinct amber "LIVE" branding throughout so it can't be mistaken for
+ *    the paper trading screen at a glance.
+ *
+ * Like [PaperTradePanel], this view holds no trading state itself - it just
+ * renders whatever [org.example.test.bitget.LiveTradingRepository] gives it
+ * and forwards user actions back out through [Callbacks].
  */
-class PaperTradePanel @JvmOverloads constructor(
+class LiveTradePanel @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
@@ -50,6 +60,9 @@ class PaperTradePanel @JvmOverloads constructor(
     private val bullColor = Color.parseColor("#26A69A")
     private val bearColor = Color.parseColor("#EF5350")
     private val fieldBackground = Color.parseColor("#131722")
+    private val liveAccentColor = Color.parseColor("#F0B90B") // amber - "this is real money", distinct from paper's teal
+    private val liveWarningBorder = Color.parseColor("#4D3A1A")
+    private val liveWarningFill = Color.parseColor("#241C0E")
 
     private var callbacks: Callbacks? = null
     private var savedCredentials: BitgetCredentials? = null
@@ -74,11 +87,12 @@ class PaperTradePanel @JvmOverloads constructor(
         background = GradientDrawable().apply {
             cornerRadius = dp(14).toFloat()
             setColor(surfaceColor)
-            setStroke(dp(1), borderColor)
+            setStroke(dp(1), liveAccentColor.withAlpha(0x55))
         }
         setPadding(dp(14), dp(12), dp(14), dp(14))
 
         addView(buildHeaderRow())
+        addView(buildWarningBanner())
         addView(buildBalanceRow())
         addView(spacer(10))
         addView(buildOrderEntryRow())
@@ -98,6 +112,9 @@ class PaperTradePanel @JvmOverloads constructor(
         positionsContainer = LinearLayout(context).apply { orientation = VERTICAL }
         addView(positionsContainer)
     }
+
+    private fun Int.withAlpha(alpha: Int): Int =
+        Color.argb(alpha, Color.red(this), Color.green(this), Color.blue(this))
 
     fun bind(callbacks: Callbacks) {
         this.callbacks = callbacks
@@ -132,7 +149,7 @@ class PaperTradePanel @JvmOverloads constructor(
         val (dotColor, label) = when (connectionState) {
             PaperTradingConnectionState.NOT_CONFIGURED -> mutedColor to "Not connected"
             PaperTradingConnectionState.LOADING -> mutedColor to "Connecting…"
-            PaperTradingConnectionState.LIVE -> bullColor to "Demo account live"
+            PaperTradingConnectionState.LIVE -> liveAccentColor to "Live account connected"
             PaperTradingConnectionState.ERROR -> bearColor to (lastError ?: "Error")
         }
         statusDot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(dotColor) }
@@ -171,15 +188,33 @@ class PaperTradePanel @JvmOverloads constructor(
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val title = TextView(context).apply {
-            text = "Paper Trading"
-            textSize = 14.5f
-            setTextColor(labelColor)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val titleColumn = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        titleColumn.addView(TextView(context).apply {
+            text = "Live Trading"
+            textSize = 14.5f
+            setTextColor(labelColor)
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        titleColumn.addView(TextView(context).apply {
+            text = "REAL FUNDS"
+            textSize = 9.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(liveAccentColor)
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(4).toFloat()
+                setStroke(dp(1), liveAccentColor)
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = dp(8)
+            }
+        })
         settingsButton = TextView(context).apply {
-            text = "⚙ Demo API Key"
+            text = "⚙ Live API Key"
             textSize = 12f
             setTextColor(mutedColor)
             isClickable = true
@@ -187,10 +222,27 @@ class PaperTradePanel @JvmOverloads constructor(
             setPadding(dp(8), dp(4), dp(8), dp(4))
             setOnClickListener { showCredentialsDialog() }
         }
-        row.addView(title)
+        row.addView(titleColumn)
         row.addView(settingsButton)
         return row
     }
+
+    private fun buildWarningBanner(): View =
+        TextView(context).apply {
+            text = "Orders placed here use real funds on your Bitget account."
+            textSize = 11f
+            setTextColor(liveAccentColor)
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(liveWarningFill)
+                setStroke(dp(1), liveWarningBorder)
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(8)
+                bottomMargin = dp(2)
+            }
+        }
 
     private fun buildBalanceRow(): View {
         val row = LinearLayout(context).apply {
@@ -225,7 +277,7 @@ class PaperTradePanel @JvmOverloads constructor(
         balanceText = TextView(context).apply {
             textSize = 15f
             setTextColor(labelColor)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
             text = "—"
         }
         balancePnlText = TextView(context).apply {
@@ -259,7 +311,7 @@ class PaperTradePanel @JvmOverloads constructor(
             isAllCaps = false
             setTextColor(Color.WHITE)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { submitOrder(currentSide) }
+            setOnClickListener { confirmAndSubmitOrder(currentSide) }
         }
         applySideStyle()
 
@@ -269,14 +321,27 @@ class PaperTradePanel @JvmOverloads constructor(
         return row
     }
 
-    private fun submitOrder(side: PositionSide) {
+    private fun confirmAndSubmitOrder(side: PositionSide) {
         val size = sizeInput.text?.toString()?.trim().orEmpty()
         val leverage = leverageInput.text?.toString()?.trim()?.toIntOrNull() ?: 5
         if (size.toDoubleOrNull() == null || size.toDouble() <= 0.0) {
             sizeInput.error = "Enter a size"
             return
         }
-        callbacks?.onOpenPosition?.invoke(side, size, leverage.coerceIn(1, 125))
+        val clampedLeverage = leverage.coerceIn(1, 125)
+        val sideLabel = if (side == PositionSide.LONG) "LONG" else "SHORT"
+
+        AlertDialog.Builder(context)
+            .setTitle("Confirm live order")
+            .setMessage(
+                "Open a $sideLabel position of $size BTC at ${clampedLeverage}x leverage " +
+                    "on BTCUSDT.\n\nThis places a real order with real funds on your Bitget account.",
+            )
+            .setPositiveButton("Place order") { _, _ ->
+                callbacks?.onOpenPosition?.invoke(side, size, clampedLeverage)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun buildPositionsHeader(): View =
@@ -308,7 +373,7 @@ class PaperTradePanel @JvmOverloads constructor(
             text = "${position.symbol}  "
             textSize = 13f
             setTextColor(labelColor)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
         })
         titleRow.addView(TextView(context).apply {
             text = if (isLong) "LONG ${position.leverage}x" else "SHORT ${position.leverage}x"
@@ -352,13 +417,28 @@ class PaperTradePanel @JvmOverloads constructor(
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 marginStart = dp(10)
             }
-            setOnClickListener { callbacks?.onClosePosition?.invoke(position) }
+            setOnClickListener { confirmAndClosePosition(position) }
         }
 
         row.addView(infoColumn)
         row.addView(pnlColumn)
         row.addView(closeButton)
         return row
+    }
+
+    private fun confirmAndClosePosition(position: PaperPosition) {
+        val sideLabel = if (position.side == PositionSide.LONG) "LONG" else "SHORT"
+        AlertDialog.Builder(context)
+            .setTitle("Confirm close position")
+            .setMessage(
+                "Close the $sideLabel ${position.symbol} position " +
+                    "(${String.format(Locale.US, "%.4f", position.total)} BTC) with a real market order.",
+            )
+            .setPositiveButton("Close position") { _, _ ->
+                callbacks?.onClosePosition?.invoke(position)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showCredentialsDialog() {
@@ -369,21 +449,29 @@ class PaperTradePanel @JvmOverloads constructor(
         val apiKeyField = dialogEditText("API Key").apply { setText(savedCredentials?.apiKey.orEmpty()) }
         val secretField = dialogEditText("Secret Key", isPassword = true).apply { setText(savedCredentials?.secretKey.orEmpty()) }
         val passphraseField = dialogEditText("Passphrase", isPassword = true).apply { setText(savedCredentials?.passphrase.orEmpty()) }
-        val helpText = TextView(context).apply {
-            text = "Create this under Bitget app → switch to Demo mode → " +
-                "Personal Center → API Key Management → Create Demo API Key."
+        val warningText = TextView(context).apply {
+            text = "This key can place real trades with real money. Create it under Bitget app → " +
+                "Personal Center → API Key Management → Create API Key, grant it Trade permission " +
+                "only (leave Withdraw off), and restrict it to your IP if Bitget offers that option."
             textSize = 11.5f
+            setTextColor(liveAccentColor)
+            setPadding(0, dp(6), 0, dp(4))
+        }
+        val acknowledgeCheckbox = CheckBox(context).apply {
+            text = "I understand this key can place real trades with real funds"
+            textSize = 12f
             setTextColor(mutedColor)
-            setPadding(0, dp(4), 0, dp(4))
+            isChecked = savedCredentials != null // already-saved keys don't need re-acknowledgement to view/edit
         }
 
         container.addView(apiKeyField)
         container.addView(secretField)
         container.addView(passphraseField)
-        container.addView(helpText)
+        container.addView(warningText)
+        container.addView(acknowledgeCheckbox)
 
         val dialog = AlertDialog.Builder(context)
-            .setTitle("Bitget Demo API Key")
+            .setTitle("Bitget Live API Key")
             .setView(container)
             .setPositiveButton("Save", null)
             .setNegativeButton("Cancel", null)
@@ -391,7 +479,15 @@ class PaperTradePanel @JvmOverloads constructor(
             .create()
 
         dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+
+            fun refreshSaveEnabled() {
+                saveButton.isEnabled = acknowledgeCheckbox.isChecked
+            }
+            acknowledgeCheckbox.setOnCheckedChangeListener { _, _ -> refreshSaveEnabled() }
+            refreshSaveEnabled()
+
+            saveButton.setOnClickListener {
                 val credentials = BitgetCredentials(
                     apiKey = apiKeyField.text?.toString()?.trim().orEmpty(),
                     secretKey = secretField.text?.toString()?.trim().orEmpty(),

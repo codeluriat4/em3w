@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
         candleChart = findViewById(R.id.candleChart)
         depthHeatmap = findViewById(R.id.depthHeatmap)
         timeframeRow = findViewById(R.id.timeframeRow)
-        chartAndStatsContainer = findViewById(R.id.chartAndStatsContainer)
+        chartAndStatsContainer = findViewById(R.id.chartSectionContainer)
         chartCanvas = findViewById(R.id.chartCanvas)
         chartStatsPanel = findViewById(R.id.chartStatsPanel)
         setupChartStatsScrollGesture()
@@ -459,13 +459,14 @@ class MainActivity : AppCompatActivity() {
         chartAndStatsContainer.onScrollDownOutsideCanvas = { setChartStatsExpanded(true) }
         chartAndStatsContainer.onScrollUpOutsideCanvas = { setChartStatsExpanded(false) }
 
-        // Capture the container's natural (fully-expanded-chart) height once it's first
-        // laid out, so we know how much room we have to redistribute between the chart
-        // and the stats panel.
-        chartAndStatsContainer.viewTreeObserver.addOnGlobalLayoutListener(
+        // Capture the chart canvas's natural (fully-expanded) height once it's first laid
+        // out. While not collapsed, chartCanvas.height *is* the full flexible space (the
+        // stats panel sits at height 0), so this stays accurate across any changes in the
+        // fixed-height siblings above/below (e.g. the connectivity banner appearing).
+        chartCanvas.viewTreeObserver.addOnGlobalLayoutListener(
             object : ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
-                    val height = chartAndStatsContainer.height
+                    val height = chartCanvas.height
                     if (height > 0 && !isChartStatsExpanded) {
                         chartAreaFullHeightPx = height
                     }

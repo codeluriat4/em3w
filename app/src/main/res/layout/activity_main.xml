@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<org.example.test.ui.ScrollAwareChartContainer xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/chartSectionContainer"
@@ -211,97 +211,88 @@
             android:focusable="true" />
     </LinearLayout>
 
-    <org.example.test.ui.ScrollAwareChartContainer
-        android:id="@+id/chartAndStatsContainer"
+    <FrameLayout
+        android:id="@+id/chartCanvas"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="14dp"
-        android:orientation="vertical">
+        android:layout_marginTop="14dp">
 
-        <FrameLayout
-            android:id="@+id/chartCanvas"
+        <org.example.test.chart.DepthHeatmapView
+            android:id="@+id/depthHeatmap"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_height="match_parent"
+            tools:background="#131722" />
 
-            <org.example.test.chart.DepthHeatmapView
-                android:id="@+id/depthHeatmap"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                tools:background="#131722" />
-
-            <org.example.test.chart.CandlestickChartView
-                android:id="@+id/candleChart"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-            <org.example.test.ui.DrawingContextToolbar
-                android:id="@+id/drawingContextToolbar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:id="@+id/chartOrderButtonsRow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
-                android:layout_marginEnd="72dp"
-                android:layout_marginBottom="24dp"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <Button
-                    android:id="@+id/chartLongButton"
-                    style="?android:attr/borderlessButtonStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp"
-                    android:background="@drawable/bg_chart_long_button"
-                    android:text="@string/chart_long_button_label"
-                    android:textAllCaps="false"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold"
-                    android:textColor="#FFFFFF"
-                    android:contentDescription="@string/chart_long_button_content_description" />
-
-                <Button
-                    android:id="@+id/chartShortButton"
-                    style="?android:attr/borderlessButtonStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:layout_marginStart="8dp"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp"
-                    android:background="@drawable/bg_chart_short_button"
-                    android:text="@string/chart_short_button_label"
-                    android:textAllCaps="false"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold"
-                    android:textColor="#FFFFFF"
-                    android:contentDescription="@string/chart_short_button_content_description" />
-
-            </LinearLayout>
-
-        </FrameLayout>
-
-        <org.example.test.ui.ChartStatsPanel
-            android:id="@+id/chartStatsPanel"
+        <org.example.test.chart.CandlestickChartView
+            android:id="@+id/candleChart"
             android:layout_width="match_parent"
-            android:layout_height="0dp" />
+            android:layout_height="match_parent" />
 
-    </org.example.test.ui.ScrollAwareChartContainer>
+        <org.example.test.ui.DrawingContextToolbar
+            android:id="@+id/drawingContextToolbar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/chartOrderButtonsRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="72dp"
+            android:layout_marginBottom="24dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/chartLongButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:background="@drawable/bg_chart_long_button"
+                android:text="@string/chart_long_button_label"
+                android:textAllCaps="false"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/chart_long_button_content_description" />
+
+            <Button
+                android:id="@+id/chartShortButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginStart="8dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:background="@drawable/bg_chart_short_button"
+                android:text="@string/chart_short_button_label"
+                android:textAllCaps="false"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/chart_short_button_content_description" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <org.example.test.ui.ChartStatsPanel
+        android:id="@+id/chartStatsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="0dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -346,4 +337,4 @@
             android:contentDescription="@string/drawing_tools_content_description" />
     </LinearLayout>
 
-</LinearLayout>
+</org.example.test.ui.ScrollAwareChartContainer>

@@ -454,6 +454,10 @@ class MainActivity : AppCompatActivity() {
         chartSectionContainer.excludedInteractiveView = candleChart
         chartSectionContainer.excludedRightInsetPx = ChartLayoutMetrics.priceAxisWidthPx(resources)
         chartSectionContainer.excludedBottomInsetPx = ChartLayoutMetrics.timeAxisHeightPx(resources)
+        // Leaves the drawer's grab handle draggable for the reveal gesture while
+        // letting drags that start on its body (balance, leverage, size, order
+        // type, Long/Short) scroll the drawer instead of resizing it.
+        chartSectionContainer.excludedScrollableView = quickTradePanel.scrollableContent
         chartSectionContainer.onVerticalDrag = { phase, deltaY ->
             when (phase) {
                 ScrollRevealContainer.DragPhase.START -> {

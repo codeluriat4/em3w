@@ -24,6 +24,12 @@ import kotlin.math.abs
  * outside the chart view entirely (header, banner, timeframe row, toolbar
  * icons) is eligible by default.
  *
+ * [excludedScrollableView], if set, carves out a second, unconditional zone
+ * (no insets) for a view that does its own vertical scrolling - e.g. the
+ * quick-trade drawer's body once it has more controls than fit in its
+ * allotted height. A drag starting inside it is left alone so the view's own
+ * scrolling handles it instead of it being stolen for the reveal gesture.
+ *
  * Uses the standard "intercept once a real drag is detected" pattern (the
  * same one ScrollView/RecyclerView use) so taps on buttons that happen to
  * sit in an eligible zone - e.g. the timeframe pills - still register as
@@ -46,6 +52,9 @@ class ScrollRevealContainer @JvmOverloads constructor(
 
     /** Height of the time-axis strip (screen bottom edge of [excludedInteractiveView]) to carve back out of the exclusion. */
     var excludedBottomInsetPx: Float = 0f
+
+    /** A second, self-scrolling view (e.g. the quick-trade drawer's body) that's off-limits to this gesture entirely, with no inset carve-outs. */
+    var excludedScrollableView: View? = null
 
     /** [deltaY] is event.y - downY in this container's local coordinates: positive means the finger moved down. */
     var onVerticalDrag: ((phase: DragPhase, deltaY: Float) -> Unit)? = null
@@ -102,7 +111,18 @@ class ScrollRevealContainer @JvmOverloads constructor(
     }
 
     private fun isInsideExcludedPlotArea(x: Float, y: Float): Boolean {
-        val target = excludedInteractiveView ?: return false
+        val chart = excludedInteractiveView
+        if (chart != null && isInsideRegion(x, y, chart, excludedRightInsetPx, excludedBottomInsetPx)) {
+            return true
+        }
+        val scrollable = excludedScrollableView
+        if (scrollable != null && isInsideRegion(x, y, scrollable)) {
+            return true
+        }
+        return false
+    }
+
+    private fun isInsideRegion(x: Float, y: Float, target: View, rightInsetPx: Float = 0f, bottomInsetPx: Float = 0f): Boolean {
         if (target.visibility != View.VISIBLE) return false
         val containerLoc = IntArray(2)
         val targetLoc = IntArray(2)
@@ -110,8 +130,8 @@ class ScrollRevealContainer @JvmOverloads constructor(
         target.getLocationOnScreen(targetLoc)
         val left = (targetLoc[0] - containerLoc[0]).toFloat()
         val top = (targetLoc[1] - containerLoc[1]).toFloat()
-        val right = left + target.width - excludedRightInsetPx
-        val bottom = top + target.height - excludedBottomInsetPx
+        val right = left + target.width - rightInsetPx
+        val bottom = top + target.height - bottomInsetPx
         return x in left..right && y in top..bottom
     }
 }

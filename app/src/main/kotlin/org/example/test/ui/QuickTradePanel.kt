@@ -9,8 +9,10 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.widget.NestedScrollView
 import org.example.test.bitget.PaperAccountBalance
 import org.example.test.bitget.PositionSide
 import java.util.Locale
@@ -24,6 +26,18 @@ import java.util.Locale
  *
  * It holds no trading state of its own - [MainActivity] drives visibility
  * (via the scroll gesture) and feeds it balance updates through [render].
+ *
+ * The drawer's own height is a fraction of the chart container (set by
+ * [MainActivity]'s drag-to-reveal animation), so its content - balance row,
+ * leverage/size/order-type controls, limit price field, Long/Short buttons -
+ * can end up taller than the space it's given, especially with the limit
+ * price field visible on smaller screens. Everything below the grab handle
+ * therefore lives inside [scrollableContent], a [NestedScrollView] that lets
+ * the drawer be scrolled up and down to reach controls that don't fit.
+ * [scrollableContent] is exposed so [MainActivity] can exclude it from the
+ * outer drag-to-reveal gesture, letting a vertical drag that starts over the
+ * drawer's body scroll it instead of resizing it - only the grab handle
+ * remains reserved for resize drags.
  */
 class QuickTradePanel @JvmOverloads constructor(
     context: Context,
@@ -64,6 +78,16 @@ class QuickTradePanel @JvmOverloads constructor(
     private lateinit var limitPriceInput: EditText
     private lateinit var longButton: TextView
     private lateinit var shortButton: TextView
+    private lateinit var scrollView: NestedScrollView
+
+    /**
+     * The scrollable body of the drawer (everything except the grab handle).
+     * [MainActivity] excludes this from the outer drag-to-reveal gesture so
+     * a drag that starts inside the drawer scrolls its content instead of
+     * being stolen for the resize gesture.
+     */
+    val scrollableContent: View
+        get() = scrollView
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
@@ -77,17 +101,38 @@ class QuickTradePanel @JvmOverloads constructor(
         setPadding(dp(16), dp(14), dp(16), dp(14))
 
         addView(buildGrabHandle())
-        addView(buildStatRow())
-        addView(spacer(14))
-        addView(buildLeverageRow())
-        addView(spacer(10))
-        addView(buildSizeRow())
-        addView(spacer(10))
-        addView(buildOrderTypeRow())
+        addView(buildScrollableBody())
+    }
+
+    private fun buildScrollableBody(): View {
+        val body = LinearLayout(context).apply { orientation = VERTICAL }
+        body.addView(buildStatRow())
+        body.addView(spacer(14))
+        body.addView(buildLeverageRow())
+        body.addView(spacer(10))
+        body.addView(buildSizeRow())
+        body.addView(spacer(10))
+        body.addView(buildOrderTypeRow())
         limitPriceInput = buildLimitPriceInput()
-        addView(limitPriceInput)
-        addView(spacer(14))
-        addView(buildLongShortRow())
+        body.addView(limitPriceInput)
+        body.addView(spacer(14))
+        body.addView(buildLongShortRow())
+
+        scrollView = NestedScrollView(context).apply {
+            isFillViewport = false
+            clipToPadding = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = true
+            addView(
+                body,
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT),
+            )
+            // Fills whatever height the panel is given by MainActivity's
+            // expand/collapse weight animation; scrolls internally once the
+            // controls below no longer fit in that height.
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        return scrollView
     }
 
     fun bind(callbacks: Callbacks) {

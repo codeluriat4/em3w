@@ -8,14 +8,22 @@ import android.text.InputType
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.example.test.bitget.BitgetCredentials
+import org.example.test.bitget.BitgetLiveTradingRestClient
 import org.example.test.bitget.PaperAccountBalance
 import org.example.test.bitget.PaperPosition
 import org.example.test.bitget.PaperTradingConnectionState
@@ -66,6 +74,7 @@ class LiveTradePanel @JvmOverloads constructor(
 
     private var callbacks: Callbacks? = null
     private var savedCredentials: BitgetCredentials? = null
+    private var lastConnectionState: PaperTradingConnectionState = PaperTradingConnectionState.NOT_CONFIGURED
 
     private lateinit var statusDot: View
     private lateinit var statusText: TextView
@@ -145,6 +154,7 @@ class LiveTradePanel @JvmOverloads constructor(
         credentials: BitgetCredentials?,
     ) {
         savedCredentials = credentials
+        lastConnectionState = connectionState
 
         val (dotColor, label) = when (connectionState) {
             PaperTradingConnectionState.NOT_CONFIGURED -> mutedColor to "Not connected"
@@ -441,79 +451,304 @@ class LiveTradePanel @JvmOverloads constructor(
             .show()
     }
 
+    /**
+     * The live trading credentials modal. Deliberately scoped to exactly two
+     * things - the API Key/Secret/Passphrase and the API Connection it will
+     * be used against - since that's the only decision this screen needs to
+     * make; order entry, positions, etc. all live on the main panel.
+     */
     private fun showCredentialsDialog() {
+        // Own scope for the (unsaved-credentials) "Test Connection" network
+        // call, cancelled the moment the dialog goes away so a slow response
+        // can't land after the views it would update are gone.
+        val dialogScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+        var isTestnet = savedCredentials?.isTestnet ?: false
+
         val container = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(dp(20), dp(12), dp(20), dp(0))
-        }
-        val apiKeyField = dialogEditText("API Key").apply { setText(savedCredentials?.apiKey.orEmpty()) }
-        val secretField = dialogEditText("Secret Key", isPassword = true).apply { setText(savedCredentials?.secretKey.orEmpty()) }
-        val passphraseField = dialogEditText("Passphrase", isPassword = true).apply { setText(savedCredentials?.passphrase.orEmpty()) }
-        val warningText = TextView(context).apply {
-            text = "This key can place real trades with real money. Create it under Bitget app → " +
-                "Personal Center → API Key Management → Create API Key, grant it Trade permission " +
-                "only (leave Withdraw off), and restrict it to your IP if Bitget offers that option."
-            textSize = 11.5f
-            setTextColor(liveAccentColor)
-            setPadding(0, dp(6), 0, dp(4))
-        }
-        val acknowledgeCheckbox = CheckBox(context).apply {
-            text = "I understand this key can place real trades with real funds"
-            textSize = 12f
-            setTextColor(mutedColor)
-            isChecked = savedCredentials != null // already-saved keys don't need re-acknowledgement to view/edit
+            setPadding(dp(20), dp(14), dp(20), dp(4))
         }
 
-        container.addView(apiKeyField)
-        container.addView(secretField)
-        container.addView(passphraseField)
-        container.addView(warningText)
-        container.addView(acknowledgeCheckbox)
+        container.addView(sectionHeader("API Credentials"))
+        val (apiKeyField, apiKeyRow) = secureField("API Key", savedCredentials?.apiKey.orEmpty(), maskByDefault = false)
+        val (secretField, secretRow) = secureField("API Secret", savedCredentials?.secretKey.orEmpty(), maskByDefault = true)
+        val (passphraseField, passphraseRow) = secureField("Passphrase (optional)", savedCredentials?.passphrase.orEmpty(), maskByDefault = true)
+        container.addView(apiKeyRow)
+        container.addView(secretRow)
+        container.addView(passphraseRow)
+
+        container.addView(spacer(14))
+        container.addView(sectionHeader("API Connection"))
+
+        // Exchange selector - a single supported exchange today, presented
+        // as a dropdown so this reads naturally if more are added later.
+        val exchangeSpinner = Spinner(context).apply {
+            adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, listOf("Bitget"))
+        }
+        container.addView(labeledRow("Exchange", exchangeSpinner))
+
+        // Environment segmented control - Mainnet vs Testnet. Testnet keys
+        // are Bitget "Demo API Keys" and are routed with the sandbox header
+        // (see BitgetLiveTradingRestClient) rather than the real one.
+        lateinit var mainnetOption: TextView
+        lateinit var testnetOption: TextView
+        fun refreshEnvironmentStyle() {
+            mainnetOption.background = segmentedOptionBackground(selected = !isTestnet)
+            mainnetOption.setTextColor(if (!isTestnet) Color.WHITE else mutedColor)
+            testnetOption.background = segmentedOptionBackground(selected = isTestnet)
+            testnetOption.setTextColor(if (isTestnet) Color.WHITE else mutedColor)
+        }
+        mainnetOption = segmentedOption("Mainnet") { isTestnet = false; refreshEnvironmentStyle() }
+        testnetOption = segmentedOption("Testnet") { isTestnet = true; refreshEnvironmentStyle() }
+        val environmentRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            addView(mainnetOption)
+            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dp(6), 0) })
+            addView(testnetOption)
+        }
+        refreshEnvironmentStyle()
+        container.addView(labeledRow("Environment", environmentRow))
+
+        container.addView(spacer(14))
+        container.addView(buildDivider())
+        container.addView(spacer(10))
+
+        // Connection status indicator.
+        val statusDotView = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginEnd = dp(7) }
+        }
+        val statusLabel = TextView(context).apply {
+            textSize = 12.5f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val statusDetail = TextView(context).apply {
+            textSize = 11f
+            setTextColor(mutedColor)
+            setPadding(0, dp(2), 0, 0)
+        }
+        val testProgress = ProgressBar(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginStart = dp(8) }
+            visibility = View.GONE
+        }
+        fun setStatus(connected: Boolean, detail: String? = null) {
+            statusDotView.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (connected) bullColor else mutedColor)
+            }
+            statusLabel.text = if (connected) "Connected" else "Not Connected"
+            statusLabel.setTextColor(if (connected) bullColor else mutedColor)
+            statusDetail.text = detail.orEmpty()
+            statusDetail.visibility = if (detail.isNullOrBlank()) View.GONE else View.VISIBLE
+        }
+        val statusRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(statusDotView)
+            addView(statusLabel)
+            addView(testProgress)
+        }
+        setStatus(connected = lastConnectionState == PaperTradingConnectionState.LIVE)
+        container.addView(statusRow)
+        container.addView(statusDetail)
+
+        container.addView(spacer(10))
+
+        val testConnectionButton = TextView(context).apply {
+            text = "Test Connection"
+            textSize = 12.5f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(labelColor)
+            isClickable = true
+            isFocusable = true
+            setPadding(0, dp(10), 0, dp(10))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), borderColor)
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        container.addView(testConnectionButton)
+
+        container.addView(spacer(12))
+        container.addView(TextView(context).apply {
+            text = "Your API credentials are used only to connect to the exchange from this " +
+                "device. They are never used for withdrawals - create the key with withdrawal " +
+                "permissions disabled on the exchange."
+            textSize = 11f
+            setTextColor(mutedColor)
+        })
+        container.addView(spacer(14))
+
+        val saveConnectButton = Button(context).apply {
+            text = "Save & Connect"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            background = pillBackground(liveAccentColor)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        container.addView(saveConnectButton)
+
+        if (savedCredentials != null) {
+            container.addView(spacer(6))
+            container.addView(TextView(context).apply {
+                text = "Remove saved key"
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setTextColor(bearColor)
+                isClickable = true
+                isFocusable = true
+                setPadding(0, dp(8), 0, dp(4))
+            }.also { removeText ->
+                // Wired up below, once `dialog` exists.
+                removeText.tag = "remove"
+            })
+        }
+        container.addView(spacer(4))
+
+        val scrollableContainer = ScrollView(context).apply { addView(container) }
 
         val dialog = AlertDialog.Builder(context)
-            .setTitle("Bitget Live API Key")
-            .setView(container)
-            .setPositiveButton("Save", null)
+            .setTitle("API Key & Connection")
+            .setView(scrollableContainer)
             .setNegativeButton("Cancel", null)
-            .setNeutralButton("Remove", null)
             .create()
 
-        dialog.setOnShowListener {
-            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        fun currentlyEnteredCredentials(): BitgetCredentials = BitgetCredentials(
+            apiKey = apiKeyField.text?.toString()?.trim().orEmpty(),
+            secretKey = secretField.text?.toString()?.trim().orEmpty(),
+            passphrase = passphraseField.text?.toString()?.trim().orEmpty(),
+            isTestnet = isTestnet,
+        )
 
-            fun refreshSaveEnabled() {
-                saveButton.isEnabled = acknowledgeCheckbox.isChecked
+        testConnectionButton.setOnClickListener {
+            val credentials = currentlyEnteredCredentials()
+            if (!credentials.isComplete) {
+                apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
+                secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
+                return@setOnClickListener
             }
-            acknowledgeCheckbox.setOnCheckedChangeListener { _, _ -> refreshSaveEnabled() }
-            refreshSaveEnabled()
-
-            saveButton.setOnClickListener {
-                val credentials = BitgetCredentials(
-                    apiKey = apiKeyField.text?.toString()?.trim().orEmpty(),
-                    secretKey = secretField.text?.toString()?.trim().orEmpty(),
-                    passphrase = passphraseField.text?.toString()?.trim().orEmpty(),
-                )
-                if (!credentials.isComplete) {
-                    apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
-                    secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
-                    passphraseField.error = if (credentials.passphrase.isBlank()) "Required" else null
-                    return@setOnClickListener
+            testProgress.visibility = View.VISIBLE
+            testConnectionButton.isEnabled = false
+            dialogScope.launch {
+                val client = BitgetLiveTradingRestClient(credentialsProvider = { credentials })
+                try {
+                    client.fetchAccountBalance()
+                    setStatus(connected = true, detail = "Key is valid and reachable.")
+                } catch (e: Exception) {
+                    setStatus(connected = false, detail = e.message ?: "Couldn't reach the exchange")
+                } finally {
+                    testProgress.visibility = View.GONE
+                    testConnectionButton.isEnabled = true
                 }
-                callbacks?.onCredentialsSubmitted?.invoke(credentials)
-                dialog.dismiss()
-            }
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                callbacks?.onCredentialsCleared?.invoke()
-                dialog.dismiss()
             }
         }
+
+        saveConnectButton.setOnClickListener {
+            val credentials = currentlyEnteredCredentials()
+            if (!credentials.isComplete) {
+                apiKeyField.error = if (credentials.apiKey.isBlank()) "Required" else null
+                secretField.error = if (credentials.secretKey.isBlank()) "Required" else null
+                return@setOnClickListener
+            }
+            callbacks?.onCredentialsSubmitted?.invoke(credentials)
+            dialog.dismiss()
+        }
+
+        (container.findViewWithTag<TextView>("remove"))?.setOnClickListener {
+            callbacks?.onCredentialsCleared?.invoke()
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener { dialogScope.cancel() }
         dialog.show()
     }
 
-    private fun dialogEditText(hint: String, isPassword: Boolean = false): EditText =
+    private fun sectionHeader(text: String): TextView = TextView(context).apply {
+        this.text = text.uppercase(Locale.US)
+        textSize = 11f
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(mutedColor)
+        letterSpacing = 0.04f
+        setPadding(0, dp(4), 0, dp(6))
+    }
+
+    private fun labeledRow(label: String, control: View): View = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(6), 0, dp(6))
+        addView(TextView(context).apply {
+            text = label
+            textSize = 12.5f
+            setTextColor(labelColor)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        addView(control)
+    }
+
+    private fun segmentedOption(label: String, onClick: () -> Unit): TextView =
+        TextView(context).apply {
+            text = label
+            textSize = 12f
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            setOnClickListener { onClick() }
+        }
+
+    private fun segmentedOptionBackground(selected: Boolean): GradientDrawable = GradientDrawable().apply {
+        cornerRadius = dp(8).toFloat()
+        if (selected) {
+            setColor(liveAccentColor)
+        } else {
+            setColor(Color.TRANSPARENT)
+            setStroke(dp(1), borderColor)
+        }
+    }
+
+    /** An EditText plus an eye-icon visibility toggle, wrapped in one row. Secrets start masked; the API Key does not need to. */
+    private fun secureField(hint: String, initialValue: String, maskByDefault: Boolean): Pair<EditText, View> {
+        val field = fieldEditTextForDialog(hint).apply {
+            setText(initialValue)
+            if (maskByDefault) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        var visible = !maskByDefault
+        val toggle = TextView(context).apply {
+            text = if (visible) "Hide" else "Show"
+            textSize = 11.5f
+            setTextColor(mutedColor)
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(10), dp(6), dp(2), dp(6))
+            setOnClickListener {
+                visible = !visible
+                field.inputType = if (visible) {
+                    InputType.TYPE_CLASS_TEXT
+                } else {
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                }
+                field.setSelection(field.text?.length ?: 0)
+                text = if (visible) "Hide" else "Show"
+            }
+        }
+        val row = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
+            addView(field.apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
+            addView(toggle)
+        }
+        return field to row
+    }
+
+    private fun fieldEditTextForDialog(hint: String): EditText =
         EditText(context).apply {
             this.hint = hint
-            if (isPassword) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            textSize = 13.5f
+            setTextColor(labelColor)
+            setHintTextColor(mutedColor)
         }
 
     private fun fieldEditText(hint: String, inputType: Int): EditText =

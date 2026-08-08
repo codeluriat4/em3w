@@ -175,14 +175,19 @@ class BitgetLiveTradingRestClient(
         return parseResponse(executeAsync(request))
     }
 
-    private fun Request.Builder.applyAuthHeaders(credentials: BitgetCredentials, timestamp: String, sign: String): Request.Builder =
-        header("ACCESS-KEY", credentials.apiKey)
+    private fun Request.Builder.applyAuthHeaders(credentials: BitgetCredentials, timestamp: String, sign: String): Request.Builder {
+        val builder = header("ACCESS-KEY", credentials.apiKey)
             .header("ACCESS-SIGN", sign)
             .header("ACCESS-TIMESTAMP", timestamp)
             .header("ACCESS-PASSPHRASE", credentials.passphrase)
             .header("Content-Type", JSON_MEDIA_TYPE)
             .header("locale", "en-US")
-        // Deliberately no `paptrading` header here - see class doc.
+        // Only added when the key is explicitly flagged as a Testnet/demo
+        // key via the "Environment" selector - routes the very same signed
+        // request at Bitget's sandbox matching engine instead of the real
+        // one. Omitted entirely for Mainnet keys, matching the class doc.
+        return if (credentials.isTestnet) builder.header("paptrading", "1") else builder
+    }
 
     private fun parseResponse(body: String): JSONObject {
         val json = JSONObject(body)

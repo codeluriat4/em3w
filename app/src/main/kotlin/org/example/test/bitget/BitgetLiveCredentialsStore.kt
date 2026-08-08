@@ -40,8 +40,9 @@ class BitgetLiveCredentialsStore(context: Context) {
     fun load(): BitgetCredentials? {
         val apiKey = prefs.getString(KEY_API_KEY, null) ?: return null
         val secretKey = prefs.getString(KEY_SECRET_KEY, null) ?: return null
-        val passphrase = prefs.getString(KEY_PASSPHRASE, null) ?: return null
-        val credentials = BitgetCredentials(apiKey, secretKey, passphrase)
+        val passphrase = prefs.getString(KEY_PASSPHRASE, null).orEmpty()
+        val isTestnet = prefs.getBoolean(KEY_IS_TESTNET, false)
+        val credentials = BitgetCredentials(apiKey, secretKey, passphrase, isTestnet)
         return if (credentials.isComplete) credentials else null
     }
 
@@ -50,6 +51,7 @@ class BitgetLiveCredentialsStore(context: Context) {
             .putString(KEY_API_KEY, credentials.apiKey)
             .putString(KEY_SECRET_KEY, credentials.secretKey)
             .putString(KEY_PASSPHRASE, credentials.passphrase)
+            .putBoolean(KEY_IS_TESTNET, credentials.isTestnet)
             .apply()
     }
 
@@ -64,5 +66,6 @@ class BitgetLiveCredentialsStore(context: Context) {
         private const val KEY_API_KEY = "api_key"
         private const val KEY_SECRET_KEY = "secret_key"
         private const val KEY_PASSPHRASE = "passphrase"
+        private const val KEY_IS_TESTNET = "is_testnet"
     }
 }

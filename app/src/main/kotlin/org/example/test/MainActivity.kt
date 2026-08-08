@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.Button
@@ -32,6 +31,7 @@ import org.example.test.bitget.PositionSide
 import org.example.test.bitget.SocketState
 import org.example.test.bitget.Timeframe
 import org.example.test.chart.CandlestickChartView
+import org.example.test.chart.ChartLayoutMetrics
 import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
 import org.example.test.ui.DrawingContextToolbar
@@ -42,6 +42,7 @@ import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
 import org.example.test.ui.QuickTradePanel
 import org.example.test.ui.RoundedIconButton
+import org.example.test.ui.ScrollRevealContainer
 import org.example.test.ui.SkeletonLoadingView
 import org.example.test.ui.TradingModeDialog
 import java.util.Locale
@@ -61,7 +62,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var candleChart: CandlestickChartView
     private lateinit var depthHeatmap: DepthHeatmapView
-    private lateinit var chartSectionContainer: LinearLayout
+    private lateinit var chartSectionContainer: ScrollRevealContainer
     private lateinit var chartAndQuickTradeContainer: LinearLayout
     private lateinit var chartCanvas: FrameLayout
     private lateinit var quickTradePanel: QuickTradePanel
@@ -97,13 +98,17 @@ class MainActivity : AppCompatActivity() {
     private var latestSocketState = SocketState.IDLE
     private var connectivityBannerDismissed = false
 
-    // Quick-trade drawer: dragged open by scrolling downward anywhere the chart canvas
-    // itself doesn't consume the touch (the canvas owns its own pan/zoom gestures, so
-    // this only ever fires for gestures made outside it - header, banner, toolbar, etc).
+    // Quick-trade drawer: revealed by an upward drag, hidden by a downward drag, made
+    // anywhere ScrollRevealContainer reports as eligible (i.e. outside the chart's plot
+    // area - so this covers the price axis, time axis, timeframe row, and toolbar icons,
+    // while leaving the chart's own pan/zoom gestures untouched). The drawer follows the
+    // finger live as it drags (quickTradeProgress), then settles fully open or fully
+    // closed on release.
     private var isQuickTradeExpanded = false
-    private var quickTradeGestureStartY = 0f
-    private var quickTradeGestureTracking = false
-    private var quickTradeWeightAnimator: ValueAnimator? = null
+    private var quickTradeProgress = 0f // 0 = fully collapsed, 1 = fully expanded
+    private var quickTradeDragBaseProgress = 0f
+    private var quickTradeSettleAnimator: ValueAnimator? = null
+    private val quickTradeMaxDragPx by lazy { dp(220) }
     private val quickTradeExpandedChartWeight = 0.7f
     private val quickTradeExpandedPanelWeight = 0.3f
     private val quickTradeCollapsedChartWeight = 1f
@@ -432,84 +437,65 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Captures vertical drag gestures anywhere in [chartSectionContainer] that
-     * the chart canvas and other clickable children don't already consume
-     * (the canvas handles its own pan/zoom touch, so it never bubbles up
-     * here) and uses them to open/close the quick-trade drawer:
-     *  - a downward drag past the threshold collapses the chart to 70% of
-     *    its section and reveals the drawer underneath it.
-     *  - an upward drag past the threshold while the drawer is open closes
-     *    it again and restores the chart to full height.
+     * Wires [ScrollRevealContainer]'s drag reporting to the quick-trade drawer.
+     * The container reports drags made anywhere except the chart's plot area
+     * (see [ScrollRevealContainer] for how that's determined), which lands us
+     * the price axis, time axis, timeframe row, and toolbar icons in addition
+     * to the header/banner - covering everywhere "outside the chart canvas"
+     * without touching the chart's own pan/zoom handling.
+     *
+     * Direction: dragging the finger *up* (negative deltaY) reveals the
+     * drawer; dragging *down* (positive deltaY) hides it. The drawer tracks
+     * the finger 1:1 while dragging (an on-screen, live expand rather than a
+     * snap after a hidden threshold) and settles fully open or fully closed
+     * once the finger lifts, based on which side of the midpoint it landed.
      */
     private fun setupQuickTradeScrollGesture() {
-        val touchSlop = dp(56)
-        chartSectionContainer.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    quickTradeGestureStartY = event.rawY
-                    quickTradeGestureTracking = true
-                    true
+        chartSectionContainer.excludedInteractiveView = candleChart
+        chartSectionContainer.excludedRightInsetPx = ChartLayoutMetrics.priceAxisWidthPx(resources)
+        chartSectionContainer.excludedBottomInsetPx = ChartLayoutMetrics.timeAxisHeightPx(resources)
+        chartSectionContainer.onVerticalDrag = { phase, deltaY ->
+            when (phase) {
+                ScrollRevealContainer.DragPhase.START -> {
+                    quickTradeSettleAnimator?.cancel()
+                    quickTradeDragBaseProgress = quickTradeProgress
                 }
-                MotionEvent.ACTION_MOVE -> {
-                    if (quickTradeGestureTracking) {
-                        val deltaY = event.rawY - quickTradeGestureStartY
-                        if (!isQuickTradeExpanded && deltaY > touchSlop) {
-                            setQuickTradeExpanded(true)
-                            quickTradeGestureTracking = false
-                        } else if (isQuickTradeExpanded && deltaY < -touchSlop) {
-                            setQuickTradeExpanded(false)
-                            quickTradeGestureTracking = false
-                        }
-                    }
-                    true
+                ScrollRevealContainer.DragPhase.MOVE -> {
+                    val progress = (quickTradeDragBaseProgress - deltaY / quickTradeMaxDragPx).coerceIn(0f, 1f)
+                    applyQuickTradeProgress(progress)
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    quickTradeGestureTracking = false
-                    true
+                ScrollRevealContainer.DragPhase.END, ScrollRevealContainer.DragPhase.CANCEL -> {
+                    settleQuickTrade()
                 }
-                else -> false
             }
         }
     }
 
-    private fun setQuickTradeExpanded(expand: Boolean) {
-        if (isQuickTradeExpanded == expand) return
-        isQuickTradeExpanded = expand
-
+    /** Applies a 0..1 reveal progress directly to the chart/drawer weights - the live, finger-following part of the gesture. */
+    private fun applyQuickTradeProgress(progress: Float) {
+        quickTradeProgress = progress
         val chartParams = chartCanvas.layoutParams as LinearLayout.LayoutParams
         val panelParams = quickTradePanel.layoutParams as LinearLayout.LayoutParams
-        val startChartWeight = chartParams.weight
-        val startPanelWeight = panelParams.weight
-        val endChartWeight = if (expand) quickTradeExpandedChartWeight else quickTradeCollapsedChartWeight
-        val endPanelWeight = if (expand) quickTradeExpandedPanelWeight else quickTradeCollapsedPanelWeight
-
-        if (expand) quickTradePanel.visibility = View.VISIBLE
-
-        quickTradeWeightAnimator?.cancel()
-        quickTradeWeightAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 260L
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { animator ->
-                val progress = animator.animatedValue as Float
-                chartParams.weight = startChartWeight + (endChartWeight - startChartWeight) * progress
-                panelParams.weight = startPanelWeight + (endPanelWeight - startPanelWeight) * progress
-                chartCanvas.layoutParams = chartParams
-                quickTradePanel.layoutParams = panelParams
-                chartAndQuickTradeContainer.requestLayout()
-            }
-            if (!expand) {
-                doOnAnimationEnd { quickTradePanel.visibility = View.GONE }
-            }
-            start()
-        }
+        chartParams.weight = quickTradeCollapsedChartWeight + (quickTradeExpandedChartWeight - quickTradeCollapsedChartWeight) * progress
+        panelParams.weight = quickTradeCollapsedPanelWeight + (quickTradeExpandedPanelWeight - quickTradeCollapsedPanelWeight) * progress
+        chartCanvas.layoutParams = chartParams
+        quickTradePanel.layoutParams = panelParams
+        quickTradePanel.visibility = if (progress > 0f) View.VISIBLE else View.GONE
+        chartAndQuickTradeContainer.requestLayout()
     }
 
-    private fun ValueAnimator.doOnAnimationEnd(action: () -> Unit) {
-        addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                action()
-            }
-        })
+    /** Called on finger-up: snaps to fully expanded (0.7/0.3 weights) or fully collapsed, whichever the drag ended closer to. */
+    private fun settleQuickTrade() {
+        val target = if (quickTradeProgress >= 0.5f) 1f else 0f
+        isQuickTradeExpanded = target == 1f
+        val start = quickTradeProgress
+        quickTradeSettleAnimator?.cancel()
+        quickTradeSettleAnimator = ValueAnimator.ofFloat(start, target).apply {
+            duration = 200L
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { applyQuickTradeProgress(it.animatedValue as Float) }
+            start()
+        }
     }
 
     private fun buildTimeframeButtons() {

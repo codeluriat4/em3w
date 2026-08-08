@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<org.example.test.ui.ScrollRevealContainer xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/chartSectionContainer"
@@ -349,4 +349,4 @@
             android:contentDescription="@string/drawing_tools_content_description" />
     </LinearLayout>
 
-</LinearLayout>
+</org.example.test.ui.ScrollRevealContainer>

@@ -25,10 +25,9 @@ import org.example.test.R
 /**
  * Full-screen modal launched from the § header button.
  *
- * First shows the stacked mode options - currently Paper Trading and
- * Agentic Trading - then swaps its content area in place when one is
- * picked. Live (real-funds) trading is not offered here. The app content
- * behind the modal is real-time blurred on Android 12+ (where the
+ * First shows two vertically stacked options - Paper Trading / Live Trading
+ * - then swaps its content area in place when one is picked. The app
+ * content behind the modal is real-time blurred on Android 12+ (where the
  * device/user has cross-window blur enabled); on older devices it falls
  * back to a plain dark scrim, since window blur-behind isn't available
  * pre-S. The modal surface itself uses a translucent, bordered "glass" card
@@ -37,9 +36,10 @@ import org.example.test.R
 class TradingModeDialog(
     context: Context,
     private val paperTradingContent: View,
+    private val liveTradingContent: View,
 ) : Dialog(context, R.style.TradingModalTheme) {
 
-    private enum class Screen { OPTIONS, PAPER, AGENTIC }
+    private enum class Screen { OPTIONS, PAPER, LIVE, AGENTIC }
 
     private companion object {
         // Android has no native 0-100% "blurriness" scale, so these two
@@ -227,6 +227,11 @@ class TradingModeDialog(
         showScreen(Screen.PAPER)
     }
 
+    /** Opens the dialog straight to the live trading order screen, skipping the mode picker. */
+    fun showLiveTradingScreen() {
+        showScreen(Screen.LIVE)
+    }
+
     private fun showScreen(screen: Screen) {
         contentContainer.removeAllViews()
         when (screen) {
@@ -239,6 +244,11 @@ class TradingModeDialog(
                 titleText.text = "Paper Trading"
                 backButton.visibility = View.VISIBLE
                 contentContainer.addView(scrollableCopy(paperTradingContent))
+            }
+            Screen.LIVE -> {
+                titleText.text = "Live Trading"
+                backButton.visibility = View.VISIBLE
+                contentContainer.addView(scrollableCopy(liveTradingContent))
             }
             Screen.AGENTIC -> {
                 titleText.text = "Agentic Trading"
@@ -280,10 +290,19 @@ class TradingModeDialog(
             tintIcon = true,
             onClick = { showScreen(Screen.AGENTIC) },
         )
+        val liveRow = buildOptionRow(
+            title = "Live Trading",
+            subtitle = "Trade with real funds",
+            iconRes = R.drawable.ic_mode_live,
+            tintIcon = true,
+            onClick = { showScreen(Screen.LIVE) },
+        )
 
         container.addView(paperRow)
         container.addView(divider())
         container.addView(agenticRow)
+        container.addView(divider())
+        container.addView(liveRow)
         return container
     }
 

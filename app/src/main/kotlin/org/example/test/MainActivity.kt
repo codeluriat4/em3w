@@ -1,10 +1,13 @@
 package org.example.test
 
+import android.animation.ValueAnimator
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.ViewTreeObserver
+import android.view.animation.DecelerateInterpolator
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -18,10 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import org.example.test.bitget.BookSide
 import org.example.test.bitget.Kline
-import org.example.test.bitget.LiquidityShelf
-import org.example.test.bitget.LiquidityZone
 import org.example.test.bitget.PaperAccountBalance
 import org.example.test.bitget.PaperPosition
 import org.example.test.bitget.PaperTradingConnectionState
@@ -33,7 +33,7 @@ import org.example.test.bitget.Timeframe
 import org.example.test.chart.CandlestickChartView
 import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
-import org.example.test.chart.LiquidityGradient
+import org.example.test.ui.ChartStatsPanel
 import org.example.test.ui.DrawingContextToolbar
 import org.example.test.ui.DrawingToolsPanel
 import org.example.test.ui.LiveTradePanel
@@ -41,10 +41,12 @@ import org.example.test.ui.NeumorphicInsetFrameDrawable
 import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
 import org.example.test.ui.RoundedIconButton
+import org.example.test.ui.ScrollAwareChartContainer
 import org.example.test.ui.SkeletonLoadingView
 import org.example.test.ui.TradingModeDialog
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
 
@@ -61,6 +63,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var candleChart: CandlestickChartView
     private lateinit var depthHeatmap: DepthHeatmapView
     private lateinit var timeframeRow: LinearLayout
+    private lateinit var chartAndStatsContainer: ScrollAwareChartContainer
+    private lateinit var chartCanvas: View
+    private lateinit var chartStatsPanel: ChartStatsPanel
+    private var chartAreaFullHeightPx = 0
+    private var isChartStatsExpanded = false
+    private var chartHeightAnimator: ValueAnimator? = null
     private lateinit var symbolText: TextView
     private lateinit var priceText: TextView
     private lateinit var changeText: TextView
@@ -84,23 +92,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var connectivityBannerDismiss: TextView
     private val timeframeButtons = mutableMapOf<Timeframe, Button>()
 
-    private lateinit var zoneCountValue: TextView
-    private lateinit var zoneCountBreakdown: TextView
-    private lateinit var strongestZoneCard: LinearLayout
-    private lateinit var strongestZoneSideChip: TextView
-    private lateinit var strongestZonePrice: TextView
-    private lateinit var strongestZoneVolume: TextView
-    private lateinit var strongestZoneIntensityTrack: LinearLayout
-    private lateinit var strongestZoneIntensityFill: View
-    private lateinit var strongestShelfCard: LinearLayout
-    private lateinit var strongestShelfSideChip: TextView
-    private lateinit var strongestShelfRange: TextView
-    private lateinit var strongestShelfVolume: TextView
-    private lateinit var strongestShelfIntensityTrack: LinearLayout
-    private lateinit var strongestShelfIntensityFill: View
-    private lateinit var strongestShelfProximityLabel: TextView
-    private lateinit var smartMoneyEmptyState: TextView
-
     private val drawingToolsPanel by lazy { DrawingToolsPanel(this) }
     private var activeDrawingTool: DrawingTool = DrawingTool.NONE
     private var isOrderButtonsVisible: Boolean = false
@@ -123,6 +114,10 @@ class MainActivity : AppCompatActivity() {
         candleChart = findViewById(R.id.candleChart)
         depthHeatmap = findViewById(R.id.depthHeatmap)
         timeframeRow = findViewById(R.id.timeframeRow)
+        chartAndStatsContainer = findViewById(R.id.chartAndStatsContainer)
+        chartCanvas = findViewById(R.id.chartCanvas)
+        chartStatsPanel = findViewById(R.id.chartStatsPanel)
+        setupChartStatsScrollGesture()
         symbolText = findViewById(R.id.symbolText)
         priceText = findViewById(R.id.priceText)
         changeText = findViewById(R.id.changeText)
@@ -145,22 +140,6 @@ class MainActivity : AppCompatActivity() {
         connectivityBannerText = findViewById(R.id.connectivityBannerText)
         connectivityBannerRetry = findViewById(R.id.connectivityBannerRetry)
         connectivityBannerDismiss = findViewById(R.id.connectivityBannerDismiss)
-        zoneCountValue = findViewById(R.id.zoneCountValue)
-        zoneCountBreakdown = findViewById(R.id.zoneCountBreakdown)
-        strongestZoneCard = findViewById(R.id.strongestZoneCard)
-        strongestZoneSideChip = findViewById(R.id.strongestZoneSideChip)
-        strongestZonePrice = findViewById(R.id.strongestZonePrice)
-        strongestZoneVolume = findViewById(R.id.strongestZoneVolume)
-        strongestZoneIntensityTrack = findViewById(R.id.strongestZoneIntensityTrack)
-        strongestZoneIntensityFill = findViewById(R.id.strongestZoneIntensityFill)
-        strongestShelfCard = findViewById(R.id.strongestShelfCard)
-        strongestShelfSideChip = findViewById(R.id.strongestShelfSideChip)
-        strongestShelfRange = findViewById(R.id.strongestShelfRange)
-        strongestShelfVolume = findViewById(R.id.strongestShelfVolume)
-        strongestShelfIntensityTrack = findViewById(R.id.strongestShelfIntensityTrack)
-        strongestShelfIntensityFill = findViewById(R.id.strongestShelfIntensityFill)
-        strongestShelfProximityLabel = findViewById(R.id.strongestShelfProximityLabel)
-        smartMoneyEmptyState = findViewById(R.id.smartMoneyEmptyState)
         connectivityBannerRetry.setOnClickListener {
             connectivityBannerDismissed = false
             hideConnectivityBanner()
@@ -264,6 +243,7 @@ class MainActivity : AppCompatActivity() {
                         renderHeader(candles, visible)
 
                         depthHeatmap.syncToCandles(visible, pipeline.barDurationMillis.value)
+                        chartStatsPanel.render(candles)
                     }
                 }
 
@@ -281,14 +261,12 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     depthPipeline.liquidityZones.collect { zones ->
                         depthHeatmap.submitLiquidityZones(zones)
-                        renderZoneCards(zones)
                     }
                 }
 
                 launch {
                     depthPipeline.liquidityShelves.collect { shelves ->
                         depthHeatmap.submitLiquidityShelves(shelves)
-                        renderShelfCard(shelves)
                     }
                 }
 
@@ -467,8 +445,89 @@ class MainActivity : AppCompatActivity() {
         chartOrderButtonsRow.visibility = if (isOrderButtonsVisible) View.VISIBLE else View.GONE
     }
 
+    /**
+     * Wires up the drag-to-reveal gesture for [chartStatsPanel]. The gesture is only
+     * recognized when it starts outside [chartCanvas] - the chart owns its own
+     * pan/pinch/crosshair touches and calls requestDisallowInterceptTouchEvent while
+     * handling them, so this never fights it. A downward drag elsewhere in
+     * [chartAndStatsContainer] (header, bottom bar, empty space, or the panel itself)
+     * collapses the chart up to [CHART_COLLAPSED_HEIGHT_FRACTION] of the screen height
+     * to make room for the panel; a matching upward drag restores the chart.
+     */
+    private fun setupChartStatsScrollGesture() {
+        chartAndStatsContainer.excludedView = chartCanvas
+        chartAndStatsContainer.onScrollDownOutsideCanvas = { setChartStatsExpanded(true) }
+        chartAndStatsContainer.onScrollUpOutsideCanvas = { setChartStatsExpanded(false) }
+
+        // Capture the container's natural (fully-expanded-chart) height once it's first
+        // laid out, so we know how much room we have to redistribute between the chart
+        // and the stats panel.
+        chartAndStatsContainer.viewTreeObserver.addOnGlobalLayoutListener(
+            object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    val height = chartAndStatsContainer.height
+                    if (height > 0 && !isChartStatsExpanded) {
+                        chartAreaFullHeightPx = height
+                    }
+                }
+            },
+        )
+    }
+
+    private fun setChartStatsExpanded(expanded: Boolean) {
+        if (expanded == isChartStatsExpanded) return
+        if (chartAreaFullHeightPx <= 0) return
+        isChartStatsExpanded = expanded
+
+        val screenHeightPx = resources.displayMetrics.heightPixels
+        val collapsedChartHeight = min(
+            chartAreaFullHeightPx,
+            (screenHeightPx * CHART_COLLAPSED_HEIGHT_FRACTION).toInt(),
+        )
+
+        val targetChartHeight = if (expanded) collapsedChartHeight else chartAreaFullHeightPx
+        val targetPanelHeight = chartAreaFullHeightPx - targetChartHeight
+
+        animateChartAreaHeights(targetChartHeight, targetPanelHeight)
+    }
+
+    private fun animateChartAreaHeights(targetChartHeight: Int, targetPanelHeight: Int) {
+        val startChartHeight = chartCanvas.height.takeIf { it > 0 } ?: chartAreaFullHeightPx
+        val startPanelHeight = chartStatsPanel.height
+
+        chartHeightAnimator?.cancel()
+        chartHeightAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = CHART_COLLAPSE_ANIMATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                setChartAreaHeights(
+                    chartHeight = lerp(startChartHeight, targetChartHeight, fraction),
+                    panelHeight = lerp(startPanelHeight, targetPanelHeight, fraction),
+                )
+            }
+            start()
+        }
+    }
+
+    private fun setChartAreaHeights(chartHeight: Int, panelHeight: Int) {
+        chartCanvas.layoutParams = chartCanvas.layoutParams.apply {
+            height = chartHeight
+            if (this is LinearLayout.LayoutParams) weight = 0f
+        }
+        chartStatsPanel.layoutParams = chartStatsPanel.layoutParams.apply {
+            height = panelHeight
+            if (this is LinearLayout.LayoutParams) weight = 0f
+        }
+    }
+
+    private fun lerp(from: Int, to: Int, fraction: Float): Int =
+        (from + (to - from) * fraction).toInt()
+
     private companion object {
         const val CONNECTIVITY_TIMEOUT_MS = 15_000L
+        const val CHART_COLLAPSED_HEIGHT_FRACTION = 0.7f
+        const val CHART_COLLAPSE_ANIMATION_MS = 260L
     }
 
     /**
@@ -567,98 +626,6 @@ class MainActivity : AppCompatActivity() {
             else -> 5
         }
         return String.format(Locale.US, "%,.${decimals}f", price)
-    }
-
-    /**
-     * Renders the "active liquidity zones" count card and the "strongest zone" card from
-     * the latest zone list. The strongest zone is whichever single price level currently has
-     * the highest intensity (i.e. is the largest outlier relative to recent typical size) —
-     * ties broken by raw volume.
-     */
-    private fun renderZoneCards(zones: List<LiquidityZone>) {
-        if (zones.isEmpty()) {
-            zoneCountValue.text = "0"
-            zoneCountBreakdown.text = ""
-            strongestZoneCard.visibility = View.GONE
-            smartMoneyEmptyState.visibility = View.VISIBLE
-            return
-        }
-        smartMoneyEmptyState.visibility = View.GONE
-        strongestZoneCard.visibility = View.VISIBLE
-
-        val bidCount = zones.count { it.side == BookSide.BID }
-        val askCount = zones.size - bidCount
-        zoneCountValue.text = zones.size.toString()
-        zoneCountBreakdown.text = String.format(Locale.US, "%d bid · %d ask", bidCount, askCount)
-
-        val strongest = zones.maxWithOrNull(compareBy({ it.intensity }, { it.volume })) ?: return
-        val isBid = strongest.side == BookSide.BID
-        strongestZoneSideChip.text = getString(if (isBid) R.string.smart_money_side_bid else R.string.smart_money_side_ask)
-        applySideChipStyle(strongestZoneSideChip, isBid)
-        strongestZonePrice.text = formatPrice(strongest.price)
-        val ageSeconds = ((System.currentTimeMillis() - strongest.firstSeenMs) / 1000L).coerceAtLeast(0)
-        strongestZoneVolume.text = String.format(Locale.US, "%.3f BTC resting · seen %ds", strongest.volume, ageSeconds)
-        setIntensityBar(strongestZoneIntensityTrack, strongestZoneIntensityFill, strongest.intensity)
-    }
-
-    /**
-     * Renders the "strongest shelf" card. [LiquidityShelfMerger] already returns shelves
-     * sorted by [org.example.test.bitget.LiquidityShelf.priorityScore] descending, so the
-     * strongest one is simply the first entry.
-     */
-    private fun renderShelfCard(shelves: List<LiquidityShelf>) {
-        val strongest = shelves.firstOrNull()
-        if (strongest == null) {
-            strongestShelfCard.visibility = View.GONE
-            return
-        }
-        strongestShelfCard.visibility = View.VISIBLE
-
-        val isBid = strongest.side == BookSide.BID
-        strongestShelfSideChip.text = getString(if (isBid) R.string.smart_money_side_bid else R.string.smart_money_side_ask)
-        applySideChipStyle(strongestShelfSideChip, isBid)
-        strongestShelfRange.text = "${formatPrice(strongest.minPrice)} – ${formatPrice(strongest.maxPrice)}"
-        strongestShelfVolume.text = String.format(
-            Locale.US,
-            "%.2f BTC across %d level%s",
-            strongest.totalVolume,
-            strongest.levelCount,
-            if (strongest.levelCount == 1) "" else "s",
-        )
-        setIntensityBar(strongestShelfIntensityTrack, strongestShelfIntensityFill, strongest.peakIntensity)
-
-        val proximityDescriptor = if (strongest.distanceFraction < 0.001) {
-            "At the touch"
-        } else {
-            String.format(Locale.US, "%.2f%% from mid", strongest.distanceFraction * 100.0)
-        }
-        strongestShelfProximityLabel.text = String.format(
-            Locale.US,
-            "%s · priority-ranked #1 of %d shelves",
-            proximityDescriptor,
-            shelves.size,
-        )
-    }
-
-    private fun applySideChipStyle(chip: TextView, isBid: Boolean) {
-        val color = if (isBid) bullColor else bearColor
-        chip.setTextColor(color)
-        chip.background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(4).toFloat()
-            setColor(Color.argb(38, Color.red(color), Color.green(color), Color.blue(color)))
-        }
-    }
-
-    /** Sizes an intensity bar's fill via weight redistribution and tints it off [LiquidityGradient]. */
-    private fun setIntensityBar(track: LinearLayout, fill: View, intensity: Float) {
-        // Keep a small sliver visible even at ~0 intensity so the bar doesn't look broken/empty.
-        val fillFraction = intensity.coerceIn(0.03f, 1f)
-        (fill.layoutParams as LinearLayout.LayoutParams).weight = fillFraction
-        val spacer = track.getChildAt(1)
-        (spacer.layoutParams as LinearLayout.LayoutParams).weight = (1f - fillFraction).coerceAtLeast(0f)
-        (fill.background.mutate() as GradientDrawable).setColor(LiquidityGradient.colorFor(intensity))
-        track.requestLayout()
     }
 
     private fun dp(value: Int): Int =

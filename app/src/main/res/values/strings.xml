@@ -23,14 +23,4 @@
     <string name="connectivity_banner_dismiss">✕</string>
     <string name="connectivity_banner_market_data">Can\'t reach Bitget\'s market data. If this persists, your network may be blocking it rather than a connection issue — try a VPN or a different network.</string>
     <string name="connectivity_banner_order_book">Can\'t reach Bitget\'s order book feed. If this persists, your network may be blocking it — try a VPN or a different network.</string>
-
-    <string name="smart_money_dashboard_title">Smart Money Dashboard</string>
-    <string name="smart_money_dashboard_subtitle">Liquidity zones and shelves detected live in the BTCUSDT order book.</string>
-    <string name="smart_money_zone_count_label">Active liquidity zones</string>
-    <string name="smart_money_strongest_zone_label">Strongest zone</string>
-    <string name="smart_money_strongest_shelf_label">Strongest shelf</string>
-    <string name="smart_money_side_bid">BID</string>
-    <string name="smart_money_side_ask">ASK</string>
-    <string name="smart_money_empty_state">Waiting for order book data to detect liquidity…</string>
-    <string name="smart_money_footnote">Swipe down anywhere outside the chart to explore the full liquidity picture. Swipe up, or scroll to the top, to bring the chart back.</string>
 </resources>

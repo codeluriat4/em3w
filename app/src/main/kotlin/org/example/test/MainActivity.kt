@@ -442,7 +442,11 @@ class MainActivity : AppCompatActivity() {
      * (see [ScrollRevealContainer] for how that's determined), which lands us
      * the price axis, time axis, timeframe row, and toolbar icons in addition
      * to the header/banner - covering everywhere "outside the chart canvas"
-     * without touching the chart's own pan/zoom handling.
+     * without touching the chart's own pan/zoom handling. The drawer's own
+     * grab handle additionally reports drags directly via
+     * [QuickTradePanel.onHandleDrag], independent of that container-wide
+     * detection, so dragging the handle itself is never at the mercy of the
+     * broader screen-wide gesture heuristics.
      *
      * Direction: dragging the finger *up* (negative deltaY) reveals the
      * drawer; dragging *down* (positive deltaY) hides it. The drawer tracks
@@ -456,21 +460,26 @@ class MainActivity : AppCompatActivity() {
         chartSectionContainer.excludedBottomInsetPx = ChartLayoutMetrics.timeAxisHeightPx(resources)
         // Leaves the drawer's grab handle draggable for the reveal gesture while
         // letting drags that start on its body (balance, leverage, size, order
-        // type, Long/Short) scroll the drawer instead of resizing it.
+        // type, Long/Short) scroll the drawer instead of resizing it, once the
+        // body actually has overflow content to scroll.
         chartSectionContainer.excludedScrollableView = quickTradePanel.scrollableContent
-        chartSectionContainer.onVerticalDrag = { phase, deltaY ->
-            when (phase) {
-                ScrollRevealContainer.DragPhase.START -> {
-                    quickTradeSettleAnimator?.cancel()
-                    quickTradeDragBaseProgress = quickTradeProgress
-                }
-                ScrollRevealContainer.DragPhase.MOVE -> {
-                    val progress = (quickTradeDragBaseProgress - deltaY / quickTradeMaxDragPx).coerceIn(0f, 1f)
-                    applyQuickTradeProgress(progress)
-                }
-                ScrollRevealContainer.DragPhase.END, ScrollRevealContainer.DragPhase.CANCEL -> {
-                    settleQuickTrade()
-                }
+        chartSectionContainer.onVerticalDrag = ::handleQuickTradeDrag
+        quickTradePanel.onHandleDrag = ::handleQuickTradeDrag
+    }
+
+    /** Shared handler for both the screen-wide reveal gesture and the drawer's own grab-handle drag. */
+    private fun handleQuickTradeDrag(phase: ScrollRevealContainer.DragPhase, deltaY: Float) {
+        when (phase) {
+            ScrollRevealContainer.DragPhase.START -> {
+                quickTradeSettleAnimator?.cancel()
+                quickTradeDragBaseProgress = quickTradeProgress
+            }
+            ScrollRevealContainer.DragPhase.MOVE -> {
+                val progress = (quickTradeDragBaseProgress - deltaY / quickTradeMaxDragPx).coerceIn(0f, 1f)
+                applyQuickTradeProgress(progress)
+            }
+            ScrollRevealContainer.DragPhase.END, ScrollRevealContainer.DragPhase.CANCEL -> {
+                settleQuickTrade()
             }
         }
     }

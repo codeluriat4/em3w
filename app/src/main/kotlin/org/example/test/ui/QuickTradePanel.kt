@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -38,6 +39,11 @@ import java.util.Locale
  * does [MainActivity] hand drags starting on the body to [scrollableContent]
  * instead, so it scrolls in place - the grab handle keeps working as the
  * resize target either way.
+ *
+ * The grab handle also gets its own direct touch handling via [onHandleDrag]
+ * rather than relying solely on [ScrollRevealContainer]'s screen-wide
+ * interception to notice a drag starting there - a drag on the handle
+ * itself should never depend on ancestor-level gesture detection to work.
  */
 class QuickTradePanel @JvmOverloads constructor(
     context: Context,
@@ -88,6 +94,16 @@ class QuickTradePanel @JvmOverloads constructor(
      */
     val scrollableContent: View
         get() = scrollView
+
+    /**
+     * Fires for a drag starting directly on the grab handle: reports the
+     * same [ScrollRevealContainer.DragPhase] sequence as the container-wide
+     * gesture so [MainActivity] can drive the exact same expand/collapse
+     * logic from either source.
+     */
+    var onHandleDrag: ((phase: ScrollRevealContainer.DragPhase, deltaY: Float) -> Unit)? = null
+
+    private var handleDownY = 0f
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
@@ -155,6 +171,8 @@ class QuickTradePanel @JvmOverloads constructor(
     private fun buildGrabHandle(): View =
         FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28))
+            isClickable = true
+            isFocusable = true
             addView(
                 View(context).apply {
                     background = GradientDrawable().apply {
@@ -166,6 +184,29 @@ class QuickTradePanel @JvmOverloads constructor(
                     }
                 },
             )
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        handleDownY = event.y
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.START, 0f)
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.MOVE, event.y - handleDownY)
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.END, event.y - handleDownY)
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.CANCEL, event.y - handleDownY)
+                        true
+                    }
+                    else -> false
+                }
+            }
         }
 
     private fun buildStatRow(): View {

@@ -1,5 +1,6 @@
 package org.example.test
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -14,8 +15,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.example.test.bitget.Kline
@@ -30,9 +29,10 @@ import org.example.test.bitget.Timeframe
 import org.example.test.chart.CandlestickChartView
 import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
+import org.example.test.onboarding.OnboardingActivity
+import org.example.test.onboarding.OnboardingPreferences
 import org.example.test.ui.DrawingContextToolbar
 import org.example.test.ui.DrawingToolsPanel
-import org.example.test.ui.LiveTradePanel
 import org.example.test.ui.NeumorphicInsetFrameDrawable
 import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
@@ -51,8 +51,6 @@ class MainActivity : AppCompatActivity() {
     private val depthPipeline by lazy { app.depthPipeline }
     private val credentialsStore by lazy { app.credentialsStore }
     private val paperTradingRepository by lazy { app.paperTradingRepository }
-    private val liveCredentialsStore by lazy { app.liveCredentialsStore }
-    private val liveTradingRepository by lazy { app.liveTradingRepository }
 
     private lateinit var candleChart: CandlestickChartView
     private lateinit var depthHeatmap: DepthHeatmapView
@@ -69,15 +67,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var timeframeExpandButton: ImageView
     private lateinit var drawingContextToolbar: DrawingContextToolbar
     private val paperTradePanel by lazy { PaperTradePanel(this) }
-    private val liveTradePanel by lazy { LiveTradePanel(this) }
     private lateinit var paragraphButton: RoundedIconButton
     private lateinit var chartLongButton: Button
     private lateinit var chartShortButton: Button
     private lateinit var chartOrderButtonsRow: LinearLayout
-    private lateinit var connectivityBanner: LinearLayout
-    private lateinit var connectivityBannerText: TextView
-    private lateinit var connectivityBannerRetry: TextView
-    private lateinit var connectivityBannerDismiss: TextView
     private val timeframeButtons = mutableMapOf<Timeframe, Button>()
 
     private val drawingToolsPanel by lazy { DrawingToolsPanel(this) }
@@ -86,7 +79,6 @@ class MainActivity : AppCompatActivity() {
 
     private var latestPipelineState = PipelineState.IDLE
     private var latestSocketState = SocketState.IDLE
-    private var connectivityBannerDismissed = false
 
     private val bullColor = Color.parseColor("#22D3C5")
     private val bearColor = Color.parseColor("#FF5A6E")
@@ -97,6 +89,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (!OnboardingPreferences(this).hasCompletedOnboarding) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         candleChart = findViewById(R.id.candleChart)
@@ -115,39 +114,24 @@ class MainActivity : AppCompatActivity() {
         drawingContextToolbar = findViewById(R.id.drawingContextToolbar)
         paragraphButton = findViewById(R.id.paragraphButton)
         paragraphButton.setOnClickListener {
-            TradingModeDialog(this, paperTradePanel, liveTradePanel).show()
+            TradingModeDialog(this, paperTradePanel).show()
         }
         chartLongButton = findViewById(R.id.chartLongButton)
         chartShortButton = findViewById(R.id.chartShortButton)
         chartOrderButtonsRow = findViewById(R.id.chartOrderButtonsRow)
-        connectivityBanner = findViewById(R.id.connectivityBanner)
-        connectivityBannerText = findViewById(R.id.connectivityBannerText)
-        connectivityBannerRetry = findViewById(R.id.connectivityBannerRetry)
-        connectivityBannerDismiss = findViewById(R.id.connectivityBannerDismiss)
-        connectivityBannerRetry.setOnClickListener {
-            connectivityBannerDismissed = false
-            hideConnectivityBanner()
-            app.stopMarketData()
-            app.ensureMarketDataStarted()
-        }
-        connectivityBannerDismiss.setOnClickListener {
-            connectivityBannerDismissed = true
-            hideConnectivityBanner()
-        }
         chartLongButton.setOnClickListener {
             paperTradePanel.setSide(PositionSide.LONG)
-            val dialog = TradingModeDialog(this, paperTradePanel, liveTradePanel)
+            val dialog = TradingModeDialog(this, paperTradePanel)
             dialog.show()
             dialog.showPaperTradingScreen()
         }
         chartShortButton.setOnClickListener {
             paperTradePanel.setSide(PositionSide.SHORT)
-            val dialog = TradingModeDialog(this, paperTradePanel, liveTradePanel)
+            val dialog = TradingModeDialog(this, paperTradePanel)
             dialog.show()
             dialog.showPaperTradingScreen()
         }
         setupPaperTrading()
-        setupLiveTrading()
 
         drawingContextToolbar.bind(
             candleChart,
@@ -252,8 +236,6 @@ class MainActivity : AppCompatActivity() {
                         depthHeatmap.submitLiquidityShelves(shelves)
                     }
                 }
-
-                launch { watchConnectivity() }
             }
         }
     }
@@ -320,61 +302,6 @@ class MainActivity : AppCompatActivity() {
         val error: String?,
     )
 
-    private fun setupLiveTrading() {
-        liveTradePanel.bind(
-            LiveTradePanel.Callbacks(
-                onCredentialsSubmitted = { credentials ->
-                    liveCredentialsStore.save(credentials)
-                    liveTradingRepository.onCredentialsChanged()
-                    Toast.makeText(this, "Live API Key saved", Toast.LENGTH_SHORT).show()
-                },
-                onCredentialsCleared = {
-                    liveCredentialsStore.clear()
-                    liveTradingRepository.onCredentialsChanged()
-                },
-                onOpenPosition = { side, size, leverage ->
-                    lifecycleScope.launch {
-                        val result = liveTradingRepository.openPosition(side, size, leverage)
-                        if (result is PaperTradingResult.Failure) {
-                            Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
-                        }
-                    }
-                },
-                onClosePosition = { position ->
-                    lifecycleScope.launch {
-                        val result = liveTradingRepository.closePosition(position)
-                        if (result is PaperTradingResult.Failure) {
-                            Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
-                        }
-                    }
-                },
-            ),
-        )
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    combine(
-                        liveTradingRepository.connectionState,
-                        liveTradingRepository.balance,
-                        liveTradingRepository.positions,
-                        liveTradingRepository.lastError,
-                    ) { state, balance, positions, error ->
-                        PaperTradeRenderState(state, balance, positions, error)
-                    }.collect { renderState ->
-                        liveTradePanel.render(
-                            connectionState = renderState.state,
-                            balance = renderState.balance,
-                            positions = renderState.positions,
-                            lastError = renderState.error,
-                            credentials = liveCredentialsStore.load(),
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     private fun buildTimeframeButtons() {
         for (timeframe in Timeframe.entries) {
             val isSelected = timeframe == pipeline.currentTimeframe.value
@@ -426,48 +353,6 @@ class MainActivity : AppCompatActivity() {
         )
         timeframeExpandButton.setColorFilter(pillTextColor(isOrderButtonsVisible))
         chartOrderButtonsRow.visibility = if (isOrderButtonsVisible) View.VISIBLE else View.GONE
-    }
-
-    private companion object {
-        const val CONNECTIVITY_TIMEOUT_MS = 15_000L
-    }
-
-    /**
-     * Watches both market-data sockets and, if neither manages to connect within
-     * [CONNECTIVITY_TIMEOUT_MS], surfaces a banner distinguishing "still can't reach
-     * Bitget" from the ordinary brief "Connecting…" state shown by [renderConnectionState].
-     * This matters in regions where ISPs block Bitget's domains (e.g. under Philippines
-     * NTC directives) - in that case the socket will just keep retrying forever and the
-     * user would otherwise see nothing but a spinner with no explanation.
-     *
-     * Uses collectLatest so each new state cancels any pending delay from the previous
-     * one - the timer only fires if a state has been sustained for the full timeout.
-     */
-    private suspend fun watchConnectivity() {
-        combine(pipeline.socketState, depthPipeline.socketState) { kline, depth -> kline to depth }
-            .collectLatest { (klineState, depthState) ->
-                val anyConnected = klineState == SocketState.CONNECTED || depthState == SocketState.CONNECTED
-                if (anyConnected) {
-                    connectivityBannerDismissed = false
-                    hideConnectivityBanner()
-                    return@collectLatest
-                }
-                delay(CONNECTIVITY_TIMEOUT_MS)
-                if (!connectivityBannerDismissed) {
-                    showConnectivityBanner(klineMissing = klineState != SocketState.CONNECTED)
-                }
-            }
-    }
-
-    private fun showConnectivityBanner(klineMissing: Boolean) {
-        connectivityBannerText.text = getString(
-            if (klineMissing) R.string.connectivity_banner_market_data else R.string.connectivity_banner_order_book,
-        )
-        connectivityBanner.visibility = View.VISIBLE
-    }
-
-    private fun hideConnectivityBanner() {
-        connectivityBanner.visibility = View.GONE
     }
 
     private fun renderConnectionState() {
@@ -539,13 +424,11 @@ class MainActivity : AppCompatActivity() {
         // backgrounded and stopped in between.
         app.ensureMarketDataStarted()
         paperTradingRepository.start()
-        liveTradingRepository.start()
     }
 
     override fun onStop() {
         super.onStop()
         app.stopMarketData()
         paperTradingRepository.stop()
-        liveTradingRepository.stop()
     }
 }

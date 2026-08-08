@@ -2,10 +2,8 @@ package org.example.test
 
 import android.app.Application
 import org.example.test.bitget.BitgetCredentialsStore
-import org.example.test.bitget.BitgetLiveCredentialsStore
 import org.example.test.bitget.DepthPipeline
 import org.example.test.bitget.FileKlineCacheStore
-import org.example.test.bitget.LiveTradingRepository
 import org.example.test.bitget.PaperTradingRepository
 import org.example.test.bitget.Timeframe
 import org.example.test.bitget.TradingChartPipeline
@@ -43,14 +41,6 @@ class SyncoraApplication : Application() {
 
     val paperTradingRepository: PaperTradingRepository by lazy {
         PaperTradingRepository(credentialsStore = credentialsStore, symbol = "BTCUSDT")
-    }
-
-    val liveCredentialsStore: BitgetLiveCredentialsStore by lazy {
-        BitgetLiveCredentialsStore(applicationContext)
-    }
-
-    val liveTradingRepository: LiveTradingRepository by lazy {
-        LiveTradingRepository(credentialsStore = liveCredentialsStore, symbol = "BTCUSDT")
     }
 
     private var marketDataStarted = false

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <org.example.test.orb.OrbView
+        android:id="@+id/orbView"
+        android:layout_width="320dp"
+        android:layout_height="320dp"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="70dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:fitsSystemWindows="true"
+        android:padding="32dp">
+
+        <!-- Top lockup -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_syncora_logo"
+                android:contentDescription="@string/onboarding_logo_content_description" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/onboarding_wordmark"
+                android:textAllCaps="true"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.2"
+                android:fontFamily="@font/inter_bold" />
+        </LinearLayout>
+
+        <!-- Headline -->
+        <TextView
+            android:id="@+id/headlineText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:textSize="37sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:fontFamily="@font/inter_bold"
+            android:lineSpacingExtra="2dp" />
+
+        <!-- Subtext -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/onboarding_subtext"
+            android:textSize="16sp"
+            android:textColor="#B2FFFFFF"
+            android:fontFamily="@font/inter_regular"
+            android:lineSpacingExtra="2dp" />
+
+        <!-- Flexible spacer: pushes the bottom row down, keeps the orb visually centered -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Bottom row -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/continueButton"
+                android:layout_marginEnd="16dp"
+                android:text="@string/onboarding_caption"
+                android:textColor="#B2FFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/inter_regular" />
+
+            <ImageButton
+                android:id="@+id/continueButton"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="@drawable/bg_onboarding_continue_button"
+                android:src="@drawable/ic_onboarding_continue_arrow"
+                android:scaleType="center"
+                android:contentDescription="@string/onboarding_continue_content_description" />
+
+        </RelativeLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

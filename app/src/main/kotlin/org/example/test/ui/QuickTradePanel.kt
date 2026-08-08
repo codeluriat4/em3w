@@ -185,23 +185,30 @@ class QuickTradePanel @JvmOverloads constructor(
                 },
             )
             setOnTouchListener { _, event ->
+                // Use raw (screen) coordinates rather than event.y here: the
+                // handle's own bounds move live during the drag (the panel
+                // resizes on every MOVE via applyQuickTradeProgress), so
+                // measuring against this view's local y would have the
+                // handle chasing the finger and the delta collapsing toward
+                // zero. Screen coordinates stay stable regardless of how the
+                // handle itself gets relaid-out mid-gesture.
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        handleDownY = event.y
+                        handleDownY = event.rawY
                         parent?.requestDisallowInterceptTouchEvent(true)
                         onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.START, 0f)
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.MOVE, event.y - handleDownY)
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.MOVE, event.rawY - handleDownY)
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.END, event.y - handleDownY)
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.END, event.rawY - handleDownY)
                         true
                     }
                     MotionEvent.ACTION_CANCEL -> {
-                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.CANCEL, event.y - handleDownY)
+                        onHandleDrag?.invoke(ScrollRevealContainer.DragPhase.CANCEL, event.rawY - handleDownY)
                         true
                     }
                     else -> false

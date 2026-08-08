@@ -36,6 +36,7 @@ import org.example.test.R
 class TradingModeDialog(
     context: Context,
     private val paperTradingContent: View,
+    private val liveTradingContent: View,
 ) : Dialog(context, R.style.TradingModalTheme) {
 
     private enum class Screen { OPTIONS, PAPER, LIVE, AGENTIC }
@@ -77,7 +78,6 @@ class TradingModeDialog(
     private lateinit var backButton: TextView
     private lateinit var contentContainer: FrameLayout
     private val optionsScreen by lazy { buildOptionsScreen() }
-    private val liveTradingScreen by lazy { buildPlaceholderScreen("Live trading isn't available yet", "This mode will connect to your real Bitget account.") }
     private val agenticTradingScreen by lazy { buildPlaceholderScreen("Agentic trading isn't available yet", "This mode will let an AI agent trade on your behalf.") }
 
     private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
@@ -227,6 +227,11 @@ class TradingModeDialog(
         showScreen(Screen.PAPER)
     }
 
+    /** Opens the dialog straight to the live trading order screen, skipping the mode picker. */
+    fun showLiveTradingScreen() {
+        showScreen(Screen.LIVE)
+    }
+
     private fun showScreen(screen: Screen) {
         contentContainer.removeAllViews()
         when (screen) {
@@ -238,27 +243,31 @@ class TradingModeDialog(
             Screen.PAPER -> {
                 titleText.text = "Paper Trading"
                 backButton.visibility = View.VISIBLE
-                (paperTradingContent.parent as? ViewGroup)?.removeView(paperTradingContent)
-                val scroll = ScrollView(context).apply {
-                    isFillViewport = true
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    )
-                    addView(paperTradingContent)
-                }
-                contentContainer.addView(scroll)
+                contentContainer.addView(scrollableCopy(paperTradingContent))
             }
             Screen.LIVE -> {
                 titleText.text = "Live Trading"
                 backButton.visibility = View.VISIBLE
-                contentContainer.addView(liveTradingScreen)
+                contentContainer.addView(scrollableCopy(liveTradingContent))
             }
             Screen.AGENTIC -> {
                 titleText.text = "Agentic Trading"
                 backButton.visibility = View.VISIBLE
                 contentContainer.addView(agenticTradingScreen)
             }
+        }
+    }
+
+    /** Wraps [content] in a fresh scroll container, detaching it from any previous parent first. */
+    private fun scrollableCopy(content: View): View {
+        (content.parent as? ViewGroup)?.removeView(content)
+        return ScrollView(context).apply {
+            isFillViewport = true
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            addView(content)
         }
     }
 

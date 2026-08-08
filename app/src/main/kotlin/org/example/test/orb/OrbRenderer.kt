@@ -8,9 +8,11 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Direct GLES2 port of the "Orb" WebGL/OGL shader.
+ * Direct GLES2 port of the "Orb  " WebGL/OGL shader.
  *
  * The fragment shader body is left mathematically identical to the original
  * GLSL source so the visual result matches; the additions are a [saturation]

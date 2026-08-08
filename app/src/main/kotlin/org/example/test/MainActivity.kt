@@ -1,6 +1,5 @@
 package org.example.test
 
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -23,17 +22,13 @@ import org.example.test.bitget.PaperPosition
 import org.example.test.bitget.PaperTradingConnectionState
 import org.example.test.bitget.PaperTradingResult
 import org.example.test.bitget.PipelineState
-import org.example.test.bitget.PositionSide
 import org.example.test.bitget.SocketState
 import org.example.test.bitget.Timeframe
 import org.example.test.chart.CandlestickChartView
 import org.example.test.chart.DepthHeatmapView
 import org.example.test.chart.DrawingTool
-import org.example.test.onboarding.OnboardingActivity
-import org.example.test.onboarding.OnboardingPreferences
 import org.example.test.ui.DrawingContextToolbar
 import org.example.test.ui.DrawingToolsPanel
-import org.example.test.ui.NeumorphicInsetFrameDrawable
 import org.example.test.ui.NeumorphicPillDrawable
 import org.example.test.ui.PaperTradePanel
 import org.example.test.ui.RoundedIconButton
@@ -44,7 +39,9 @@ import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
-    // Held at application scope so the pipeline survives activity recreation — see
+    // Shared with SplashActivity via the Application instance. Splash primes this
+    // connection and waits for the first candles before ever navigating here, so by the
+    // time this activity is created the pipeline is typically already LIVE — see
     // SyncoraApplication.ensureMarketDataStarted().
     private val app by lazy { application as SyncoraApplication }
     private val pipeline by lazy { app.pipeline }
@@ -64,18 +61,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var priceSkeleton: SkeletonLoadingView
     private lateinit var changeSkeleton: SkeletonLoadingView
     private lateinit var drawingToolsButton: ImageView
-    private lateinit var timeframeExpandButton: ImageView
     private lateinit var drawingContextToolbar: DrawingContextToolbar
     private val paperTradePanel by lazy { PaperTradePanel(this) }
     private lateinit var paragraphButton: RoundedIconButton
-    private lateinit var chartLongButton: Button
-    private lateinit var chartShortButton: Button
-    private lateinit var chartOrderButtonsRow: LinearLayout
     private val timeframeButtons = mutableMapOf<Timeframe, Button>()
 
     private val drawingToolsPanel by lazy { DrawingToolsPanel(this) }
     private var activeDrawingTool: DrawingTool = DrawingTool.NONE
-    private var isOrderButtonsVisible: Boolean = false
 
     private var latestPipelineState = PipelineState.IDLE
     private var latestSocketState = SocketState.IDLE
@@ -89,13 +81,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        if (!OnboardingPreferences(this).hasCompletedOnboarding) {
-            startActivity(Intent(this, OnboardingActivity::class.java))
-            finish()
-            return
-        }
-
         setContentView(R.layout.activity_main)
 
         candleChart = findViewById(R.id.candleChart)
@@ -110,26 +95,10 @@ class MainActivity : AppCompatActivity() {
         priceSkeleton = findViewById(R.id.priceSkeleton)
         changeSkeleton = findViewById(R.id.changeSkeleton)
         drawingToolsButton = findViewById(R.id.drawingToolsButton)
-        timeframeExpandButton = findViewById(R.id.timeframeExpandButton)
         drawingContextToolbar = findViewById(R.id.drawingContextToolbar)
         paragraphButton = findViewById(R.id.paragraphButton)
         paragraphButton.setOnClickListener {
             TradingModeDialog(this, paperTradePanel).show()
-        }
-        chartLongButton = findViewById(R.id.chartLongButton)
-        chartShortButton = findViewById(R.id.chartShortButton)
-        chartOrderButtonsRow = findViewById(R.id.chartOrderButtonsRow)
-        chartLongButton.setOnClickListener {
-            paperTradePanel.setSide(PositionSide.LONG)
-            val dialog = TradingModeDialog(this, paperTradePanel)
-            dialog.show()
-            dialog.showPaperTradingScreen()
-        }
-        chartShortButton.setOnClickListener {
-            paperTradePanel.setSide(PositionSide.SHORT)
-            val dialog = TradingModeDialog(this, paperTradePanel)
-            dialog.show()
-            dialog.showPaperTradingScreen()
         }
         setupPaperTrading()
 
@@ -167,12 +136,6 @@ class MainActivity : AppCompatActivity() {
         candleChart.onDrawingPlaced = {
             activeDrawingTool = DrawingTool.NONE
             updateDrawingToolsButtonState()
-        }
-
-        updateTimeframeExpandButtonState()
-        timeframeExpandButton.setOnClickListener {
-            isOrderButtonsVisible = !isOrderButtonsVisible
-            updateTimeframeExpandButtonState()
         }
 
         buildTimeframeButtons()
@@ -339,20 +302,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateDrawingToolsButtonState() {
         val isActive = activeDrawingTool != DrawingTool.NONE
-        NeumorphicInsetFrameDrawable.applyTo(
+        NeumorphicPillDrawable.applyTo(
             drawingToolsButton,
-            NeumorphicInsetFrameDrawable(resources.displayMetrics.density, selected = isActive),
+            NeumorphicPillDrawable(resources.displayMetrics.density, selected = isActive, haloDp = 6f),
         )
         drawingToolsButton.setColorFilter(pillTextColor(isActive))
-    }
-
-    private fun updateTimeframeExpandButtonState() {
-        NeumorphicInsetFrameDrawable.applyTo(
-            timeframeExpandButton,
-            NeumorphicInsetFrameDrawable(resources.displayMetrics.density, selected = isOrderButtonsVisible),
-        )
-        timeframeExpandButton.setColorFilter(pillTextColor(isOrderButtonsVisible))
-        chartOrderButtonsRow.visibility = if (isOrderButtonsVisible) View.VISIBLE else View.GONE
     }
 
     private fun renderConnectionState() {
@@ -420,8 +374,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Idempotent: no-op if already running, starts fresh if the app was fully
-        // backgrounded and stopped in between.
+        // No-op if Splash already started it (the normal path); starts fresh if the app
+        // was fully backgrounded and stopped in between.
         app.ensureMarketDataStarted()
         paperTradingRepository.start()
     }

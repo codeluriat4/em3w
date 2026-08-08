@@ -64,8 +64,8 @@ class PaperTradePanel @JvmOverloads constructor(
     private lateinit var positionsContainer: LinearLayout
     private lateinit var sizeInput: EditText
     private lateinit var leverageInput: EditText
-    private lateinit var submitOrderButton: Button
-    private var currentSide: PositionSide = PositionSide.LONG
+    private lateinit var longButton: Button
+    private lateinit var shortButton: Button
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
@@ -103,23 +103,6 @@ class PaperTradePanel @JvmOverloads constructor(
         this.callbacks = callbacks
     }
 
-    /**
-     * Preselects which side the order-entry submit button will open, e.g.
-     * from the chart's Long/Short quick-action buttons. Updates the submit
-     * button's label and color to match.
-     */
-    fun setSide(side: PositionSide) {
-        currentSide = side
-        applySideStyle()
-    }
-
-    private fun applySideStyle() {
-        if (!::submitOrderButton.isInitialized) return
-        val isLong = currentSide == PositionSide.LONG
-        submitOrderButton.text = if (isLong) "Open Long" else "Open Short"
-        submitOrderButton.background = pillBackground(if (isLong) bullColor else bearColor)
-    }
-
     fun render(
         connectionState: PaperTradingConnectionState,
         balance: PaperAccountBalance?,
@@ -142,8 +125,10 @@ class PaperTradePanel @JvmOverloads constructor(
         progressBar.visibility = if (connectionState == PaperTradingConnectionState.LOADING) View.VISIBLE else View.GONE
 
         val ordersEnabled = connectionState == PaperTradingConnectionState.LIVE
-        submitOrderButton.isEnabled = ordersEnabled
-        submitOrderButton.alpha = if (ordersEnabled) 1f else 0.5f
+        longButton.isEnabled = ordersEnabled
+        shortButton.isEnabled = ordersEnabled
+        longButton.alpha = if (ordersEnabled) 1f else 0.5f
+        shortButton.alpha = if (ordersEnabled) 1f else 0.5f
 
         if (balance != null) {
             balanceText.text = String.format(Locale.US, "%,.2f USDT", balance.equity)
@@ -255,17 +240,27 @@ class PaperTradePanel @JvmOverloads constructor(
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f).apply { marginEnd = dp(8) }
         }
 
-        submitOrderButton = Button(context).apply {
+        longButton = Button(context).apply {
+            text = "Long"
             isAllCaps = false
             setTextColor(Color.WHITE)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { submitOrder(currentSide) }
+            background = pillBackground(bullColor)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) }
+            setOnClickListener { submitOrder(PositionSide.LONG) }
         }
-        applySideStyle()
+        shortButton = Button(context).apply {
+            text = "Short"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            background = pillBackground(bearColor)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener { submitOrder(PositionSide.SHORT) }
+        }
 
         row.addView(sizeInput)
         row.addView(leverageInput)
-        row.addView(submitOrderButton)
+        row.addView(longButton)
+        row.addView(shortButton)
         return row
     }
 

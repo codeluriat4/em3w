@@ -222,11 +222,6 @@ class TradingModeDialog(
         return row
     }
 
-    /** Opens the dialog straight to the paper trading order screen, skipping the mode picker. */
-    fun showPaperTradingScreen() {
-        showScreen(Screen.PAPER)
-    }
-
     private fun showScreen(screen: Screen) {
         contentContainer.removeAllViews()
         when (screen) {
